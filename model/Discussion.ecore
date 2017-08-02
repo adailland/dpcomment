@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" name="discussions" nsURI="ubc" nsPrefix="ubc">
+  <eClassifiers xsi:type="ecore:EClass" name="Discussion">
+    <eOperations name="toString" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eOperations name="toARFF" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eOperations name="getAllUtterances" upperBound="-1" eType="#//Utterance"/>
+    <eOperations name="getAllDesignPoints" upperBound="-1" eType="#//DesignPoint"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participants" upperBound="-1"
+        eType="#//Participant" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="comments" upperBound="-1"
+        eType="#//Comment" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="title" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"
+        defaultValueLiteral="TITLE NOT SET"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="invitedUsernames" upperBound="-1"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" iD="true"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Participant">
+    <eOperations name="toString" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"
+        iD="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="member" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"
+        defaultValueLiteral="false"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Comment">
+    <eOperations name="toString" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="author" lowerBound="1"
+        eType="#//Participant"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="rawContent" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="next" eType="#//Comment"
+        eOpposite="#//Comment/previous"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="previous" eType="#//Comment"
+        eOpposite="#//Comment/next"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="id" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"
+        iD="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="utterances" upperBound="-1"
+        eType="#//Utterance" eOpposite="#//Utterance/comment"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="DesignPoint">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="role" lowerBound="1" upperBound="2"
+        eType="#//Role"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="form" lowerBound="1" eType="#//Form"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="sentiment" lowerBound="1"
+        eType="#//Sentiment"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="summary" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="id" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"
+        iD="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="utteranceDescription" lowerBound="1"
+        eType="#//UtteranceDescription" eOpposite="#//UtteranceDescription/designPoints"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="relationship" lowerBound="1"
+        upperBound="-1" eType="#//Relationship" eOpposite="#//Relationship/designpoint"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="postedBeforeCommits" lowerBound="1"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="Role">
+    <eLiterals name="original"/>
+    <eLiterals name="core" value="1"/>
+    <eLiterals name="other" value="3"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="Form">
+    <eLiterals name="openQuestion"/>
+    <eLiterals name="candidateEnumeration" value="1"/>
+    <eLiterals name="solution" value="2"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="Sentiment">
+    <eLiterals name="neutral"/>
+    <eLiterals name="positive" value="1"/>
+    <eLiterals name="negative" value="2"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="RelationshipType">
+    <eLiterals name="new"/>
+    <eLiterals name="elaborates" value="1"/>
+    <eLiterals name="generalizes" value="2"/>
+    <eLiterals name="reframes" value="3"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Utterance">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="content" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"
+        iD="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="comment" lowerBound="1"
+        eType="#//Comment" eOpposite="#//Comment/utterances"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="description" lowerBound="1"
+        eType="#//UtteranceDescription" eOpposite="#//UtteranceDescription/utterance"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="UtteranceDescription">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="utterance" lowerBound="1"
+        eType="#//Utterance" eOpposite="#//Utterance/description"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="tfidfVector" unique="false"
+        upperBound="-1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="authorIsProjectMember"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="numberOfWords" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="commentsSoFar" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="allUtterancesSoFar" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="utterancesInCommentSoFar"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="utteredByOriginalPoster"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="hasCapitalizedWord" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="containsShould" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"
+        defaultValueLiteral="false"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="topicVector" unique="false"
+        upperBound="-1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="designPoints" upperBound="-1"
+        eType="#//DesignPoint" eOpposite="#//DesignPoint/utteranceDescription"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" unique="false"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="content" ordered="false"
+        unique="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="authorInvited" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"
+        defaultValueLiteral="false"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Relationship">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="type" lowerBound="1" eType="#//RelationshipType"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="designpoint" lowerBound="1"
+        eType="#//DesignPoint" eOpposite="#//DesignPoint/relationship"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="target" eType="#//DesignPoint"/>
+  </eClassifiers>
+</ecore:EPackage>

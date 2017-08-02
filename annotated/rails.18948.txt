@@ -1,0 +1,1474 @@
+>>>kaspth, Owner
+
+Fixes #18900.
+
+Makes caching a collection of template partials faster using read_multi
+on the Rails cache store.
+
+Some caching implementations have optimized read_multi so we don't have
+to check in the cache store for every template.
+
+@dhh, I will be tackling automatic caching next. This is just so my approach and choices, so far, can be reviewed.
+
+>>>dhh, Owner
+
+Seems like a legit approach to me 👍. Much smoother implementation than the original as well.
+
+>>>kaspth, Owner
+
+Glad to hear it 👍
+
+;##D1 Should the support for a custom cache key be kept?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Given your thoughts on having the caching be automatic, do you want to keep the support for a custom cache key?
+
+>>>dhh, Owner
+
+;##D2 Support for custom key is important, but should ignroe the specific calls
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAV D1
+;##SEN NEU
+
+Yeah, I think that case still makes sense. But when you’re using the custom cache key like this, it should ignore the specific <% cache %> calls within the partials.
+
+I think using a custom cache key is going to be the minority case, so focusing on the default case first makes sense.
+
+On Feb 15, 2015, at 1:07 PM, Kasper Timm Hansen notifications@github.com wrote:
+
+Glad to hear it
+
+;##D3 Should the support for a custom cache key be kept?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Given your thoughts on having the caching be automatic, do you want to keep the support for a custom cache key?
+
+<%= render partial: 'item', collection: @items, cache: ->(item) { [item, 'show'] } %>
+—
+Reply to this email directly or view it on GitHub #18948 (comment).
+
+>>>kaspth, Owner
+
+Got it 👍
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+The Railties tests fail because PartialRenderer doesn't respond to collection_cache= here. But I don't understand why it doesn't.
+
+PartialRenderer is set to be autoloaded, so this reference should require CollectionCaching and include it into the renderer. I'm all ears if anybody has any ideas.
+
+>>>georgeclaghorn, Contributor
+
+You've declared collection_cache to be a mattr_reader. There doesn't seem to be a corresponding writer.
+
+>>>kaspth, Owner
+
+Do'h! Thanks 😄
+
+Kasper
+
+Den 16/02/2015 kl. 07.04 skrev George Claghorn notifications@github.com:
+
+In actionview/lib/action_view/railtie.rb:
+
+@@ -33,6 +33,8 @@ class Railtie < Rails::Railtie # :nodoc:
+if app.config.action_view.cache_template_loading.nil?
+ActionView::Resolver.caching = app.config.cache_classes
+end
++
+
+You've declared collection_cache to be a mattr_reader. There doesn't seem to be a corresponding writer.
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>kaspth, Owner
+
+I ditched the initializer and used Rails.try(:cache) in the collection_cache definition. I still changed it to a mattr_accessor, so Action View users outside of Rails can switch cache store if the in memory one isn't a fit.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>georgeclaghorn, Contributor
+
+;##D4 Tap is not enecessrary
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEWnNEU
+;##SEN 
+
+The tap seems unnecessary when we'll always return from inside it:
+
+>>>gsamokovarov, Contributor
+
+;##D5 It would return null in a corner case
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D4
+;##SEN NEU
+
+This will return nil if the expanded_key isn't frozen.
+
+>>>georgeclaghorn, Contributor
+
+Whoops, right.
+
+>>>jeremy, Owner
+
+;##D6 Why is dalli mutating the key?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEU
+;##SEN NEU
+
+Why does Dalli mutate the key?
+
+>>>jeremy, Owner
+
+;##D7 An explicit conditional would be more clear
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D5
+;##SEN NEU
+
+Agree that doing an explicit return within a #tap is confusing, since tap is designed to do just the opposite: return the receiver. Clearer to take its return value and do an explicit conditional: v = …; v.frozen? ? v.dup : v
+
+>>>kaspth, Owner
+
+;##D8 Is to force an encoding
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D6
+;##SEN NEU
+
+Dalli mutates the key to force the encoding: https://github.com/mperham/dalli/blob/master/lib/active_support/cache/dalli_store.rb#L348.
+
+>>>jeremy, Owner
+
+;##D9 THis causes the key to be dup'd
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D8
+;##SEN NEU
+
+It's duping the key before forcing encoding, though
+
+>>>kaspth, Owner
+
+;##D10 Should we removed the dup?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D9
+;##SEN NEU
+
+Are you saying we should remove our dup here?
+
+Kasper
+
+Den 17/02/2015 kl. 21.15 skrev Jeremy Kemper notifications@github.com:
+
+In actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb:
+
+
+end
+
+
+
+def cache_collection?
+
+
+end
+
+
+
+def collection_by_cache_keys
+
+
+
+
+end
+
+
+
+def expanded_cache_key(key)
+
+;##D11 THis causes the key to be dup'd
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D8
+;##SEN NEu
+
+
+It's duping the key before forcing encoding, though
+
+—
+Reply to this email directly or view it on GitHub.
+
+
+>>>Thread end
+
+>>>georgeclaghorn, Contributor
+
+Awesome, @kaspth!
+
+>>>kaspth, Owner
+
+@georgeclaghorn Thanks for the review 😄
+
+;##D12 This version does a multi_read even if cache
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@dhh I've pushed a commit that does a multi_read even if cache: true isn't passed to the collection and the template starts with a cache call with a name that matches the as option or what we infer it to be.
+
+How close is this to what you want?
+
+>>>dhh, Owner
+
+;##D13 Does it checks if there's a <%cache> call?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL ELAB D12
+;##SEN NEU
+
+;##D14 We should avoid rending the collection if the partials don't have that call
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D13
+;##SEN NEU
+
+@kaspth So when we hit a render collection call, you look in the partial to see if there's a <% cache call, right? Because we don't want all render collection to obviously cache unless the partials have that call. If that's the way it is, then that sounds like the way it should be!
+
+And thanks for getting this working so quickly. Very excited to try this in my latest app!
+
+>>>kaspth, Owner
+
+;##D14 It does check for an existing cache call
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAN D13
+;##SEN NEU
+
+Yes, it will only look in the cache if there's a cache call. Check these lines: https://github.com/kaspth/rails/blob/automatic-collection-caching/actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb#L30-L40
+
+>>>Thread start
+
+>>>morgoth, Contributor
+
+;##D15 Can this be set in railtie?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Maybe this could be set in railtie? Not sure if there is a Rails defined if actionview is used standalone.
+
+>>>kaspth, Owner
+
+You're right. I had it as a railtie first, but then I switched to this. I should have just checked the console:
+
+>>>simi, Contributor
+
+;##D16 What if we move Rails.cache to ActiveSupport.cache?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL REFR D15
+;##SEN NEU
+
+What about to move Rails.cache to ActiveSupport.cache (and all configs and stuff) and just delegate it from Rails.cache there? So this line will change to ActiveSupport.cache and default storage will be chosen there?
+
+Does it make sense? Would be this PR accepted?
+
+>>>dhh, Owner
+
+;##D17 We should avoid globals in ActiveSupport
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D16
+;##SEN NEU
+
+I don’t think we should be hanging off globals in ActiveSupport. Rails is the global context for this stuff.
+
+On Feb 16, 2015, at 11:22, Josef Šimánek notifications@github.com wrote:
+
+In actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb:
+
+@@ -0,0 +1,74 @@
++require 'active_support/core_ext/object/try'
++
++module ActionView
+
+module CollectionCaching
+
+extend ActiveSupport::Concern
+
+
+
+included do
+
+
+
+;##D18 What if we move Rails.cache to ActiveSupport.cache?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL REFR D15
+;##SEN NEU
+
+What about to move Rails.cache to ActiveSupport.cache (and all configs and stuff) and just delegate it from Rails.cache there? So this line will change to ActiveSupport.cache and default storage will be chosen there?
+
+Does it make sense? Would be this PR accepted?
+
+—
+Reply to this email directly or view it on GitHub.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+The documentation says virtual_path isn't set for inline templates: https://github.com/rails/rails/blob/master/actionview/lib/action_view/template.rb#L162.
+
+;##D19 Would an inline template get this far?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Can someone smarter than me say if an inline template would get this far in the eligibility logic?
+
+>>>jeremy, Owner
+
+;##D20 No, collection rendering is for partials only
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D19
+;##SEN NEU
+
+Collection rendering is for partials only, so a render inline: … won't ever be here.
+
+>>>kaspth, Owner
+
+Great 👍
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+;##D21 Do we have to render collection in  different templates?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@dhh When you render a collection, do you render have it render different templates? Say a todo list renders todo and amazing_todo?
+
+;##D22 We doulnt' be able to use read_multi
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D21
+;##SEN NEU
+
+If so, we can't use read_multi there.
+
+;##D23 @template wouldn't have a @path set
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D22
+;##SEN NEU
+
+Because @template is only set if there's a @path and @path is only set if the collection renders a single template.
+
+;##D24 collection_without_tempalte wouldn't have access to where the templates are
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D23
+;##SEN NEU
+
+Eventually collection_without_template is called and we don't have access to where it finds templates.
+
+We could try and patch it in there, but then we'd fetch the templates twice. I'll admit I don't know how costly that is. But I'd rather not 😄
+
+>>>dhh, Owner
+
+;##D25 Having read_multi can be a second step
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D21
+;##SEN NEU
+
+It'd be awesome if it would use read_multi PER template type was being fetched, but that can be a second step. So say you have 5 amazing todos and 3 regular todos -- that'd be 2 read_multi's. One per type.
+
+>>>dhh, Owner
+
+;##D26 collection_with_different_types needs a way to be done automatically
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D25
+;##SEN NEU
+
+Which actually leads me to a separate point. <%= render @collection_with_different_types %> is not something we currently have a way of doing by hand, if your partials don't map to the RecordIdentifier lookup. Need a way to do that.
+
+>>>kaspth, Owner
+
+Your last comment is a little too inside baseball for me 😄 I do recognize something about an identifier, but I've only looked at Action View for two days so it's pretty fuzzy.
+
+>>>dhh, Owner
+
+;##D27 The reason why
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D26
+;##SEN NEU
+
+Haha, I'll explain. The template system includes a digest of the template file in all <% cache %> calls. This makes it such that if you change the template file, it automatically expires all the caches based on that template digest. The digest system does dependency tracking as well. So for example, a call to <%= render @notifications %> inside an index.html.erb file make make it such that any cache calls in that file depend on the notifications/_notification digest as well. It's a full dependency tree.
+
+>>>kaspth, Owner
+
+Thanks for the explanation 👍 I've looked in the cache helper and it's fairly readable.
+
+
+>>>Thread end
+
+>>>kaspth, Owner
+
+@georgeclaghorn I guess I was illegible 😎
+
+@dhh you had another concern on the original issue:
+
+;##D28 Partial should still have it's own caching call
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The one improvement I'd like to see is that the partial being rendered should still be able to have it's own caching call that's used when the partial is referred to on it's own, but this call obviously needs to be disregarded when rendered as part of a multi_get.
+
+;##D29 Should the extract the template content from the call?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+;##D30 or should the collection render the template independently?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What do you mean by disregarded?
+Should we try and extract the inner template content from the cache call?
+Or that the collection renders the template as is - so it's cached independently - but stores it under a key the collection itself generates?
+
+If it's the last scenario, then we're doing it. As far as I can understand my own code 😅
+
+>>>dhh, Owner
+
+It should do the former. This setup should work with only 1 cache:
+
+;##D31 The partial with cache call has to match the expected collection cache, otherwise no cache
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D30
+;##SEN NEU
+
+The partial with the cache call has to match what we expect from the render collection cache. If it does not, no caching. Because otherwise the render collection cache would make a bunch of caches that don't expire on the right things. In the example above, notification.event might change sooner than notification, but if render collection just caches on notification, it won't invalidate.
+
+Makes sense?
+
+>>>kaspth, Owner
+
+Right. I think it actually does work like that.
+
+;##D32 We check if the cache call matches the name
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D31
+;##SEN NEU
+
+We do check if the cache call matches the name (i.e. notification and not notification.event). So as long as we just generate the same key as cache notification then we can read from the cache.
+
+Is that what you meant by Just Work in the original issue?
+
+>>>dhh, Owner
+
+Yes, cools. Then we’re on the same page 👍
+
+On Feb 16, 2015, at 14:01, Kasper Timm Hansen notifications@github.com wrote:
+
+Right. I think it actually does work like that.
+
+;##D33 We check if the cache call matches the name
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D31
+;##SEN NEU
+
+We do check if the cache call matches the name (i.e. notification and not notification.event). So as long as we just generate the same key as cache notification then we can read from the cache.
+
+Is that what you meant by Just Work in the original issue?
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>kaspth, Owner
+
+@dhh phew! This cache stuff screws with your head. I'll add a test to verify this 👍
+
+>>>dhh, Owner
+
+Haha, yeah, it’s a lot of balls to keep in the air at the same time! We’re deducing a lot of stuff here. Both the caching fit and the caching key that mixes in the partial digest.
+
+On Feb 16, 2015, at 14:06, Kasper Timm Hansen notifications@github.com wrote:
+
+@dhh phew! This cache stuff screws with your head. I'll add a test to verify this
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D34 Would be better to use config.action_controller.cache_store
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'd expect this to use config.action_controller.cache_store (ActionController::Base.cache_store) since that's already used for fragment caching, and falls back to Rails.cache if unconfigured.
+
+>>>kaspth, Owner
+
+👍
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+s/eligable/eligible
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D35 We could realy on truthiness
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+If we aren't checking for cache: '' or cache: [] values, we can rely on truthiness alone:
+
+>>>kaspth, Owner
+
+;##D36 Is there a way to avoid cache:false turning off cache
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D35
+;##SEN NEU
+
+The original implementation would turn caching off with cache: false. Is there a better way to express that?
+
+>>>jeremy, Owner
+
+;##D37 cache:false will have cache_collection return false
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D36
+;##SEN NEU
+
+cache: false will result in @options.fetch(:cache, default_value) returning false, so cache_collection? will return false.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D38 Can we check to avoid repeated checks?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Can we push this check down into templates and memoize it to avoid repeated checks? Then template handlers can provide their own (possibly non-ERb) decision-making about hoisting partial caches up to the collection.
+
+>>>kaspth, Owner
+
+Good call 👍
+
+;##D39 When a template is referenced once, the source will be nil
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D38
+;##SEN NEU
+
+I just found it can't be in here anyway. When a template is rendered once, it's source will be set to nil, so our check will fail.
+
+Adding eligible_for_automatic_collection_caching? to templates shortly.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D40 THis change is exposing us to regression
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This mutates the return value of PartialRenderer#collection_with/without_template, exposing us to regression if those methods are modified (for example, memoizing their result) in the future.
+
+>>>kaspth, Owner
+
+I was thinking about that too.
+
+;##D41 We could render the extra partials and do a multi_read
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D40
+;##SEN NEU
+
+The only idea I could come up with is to the render the extra partials and do a second multi_read and returning the then cached partials.
+
+But then we'd be doing two multi reads whenever there's new templates.
+
+>>>jeremy, Owner
+
+;##D52 We could do this
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+We could rendered_partials = @collection.any? ? yield.dup : []
+
+>>>kaspth, Owner
+
+I was thinking about this some more. It's a shame Enumerator raises a StopIteration exception, otherwise this would have worked (and we wouldn't have to dup the whole return value):
+
+The weird thing was adding this didn't make any tests blow up, which kind of worries me.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D53 Hash[] can be replaced with #to_h
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You can use #to_h instead of Hash[ … ] now.
+
+>>>jeremy, Owner
+
+Quicker to build the hash as we go, too:
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D54 Should the entire result be memorized?
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Should we memoize the entire result? Will @_controller ever flip between defined/undefined?
+
+>>>kaspth, Owner
+
+It won't. You're right.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D55 Renaming the cache argument would be helpful
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Would rename the cache argument to reflect that it's cache.read_multi results, not the cache itself.
+
+
+>>>Thread endp
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D56 Hash#effect would be effective here
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Can use Hash#fetch to good effect here:
+
+>>>kaspth, Owner
+
+;##D57 Does it make snese to check both in @options and @locals?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D56
+;##SEN NEU
+
+Right on. Does it make sense to check for cache_options in both @options or @locals? It was in the original multi_fetch_fragments implementation and I don't have enough experience with this to judge it with.
+
+>>>jeremy, Owner
+
+I'm not sure where those options are coming from - depends on the caller behavior; hard to trace back.
+
+>>>kaspth, Owner
+
+I copied them over from the original implementation and there was no tests for it. I'm guessing it was useful to Nate and his team, but I'd just remove it.
+
+Kasper
+
+Den 17/02/2015 kl. 21.16 skrev Jeremy Kemper notifications@github.com:
+
+In actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb:
+
+
+
+def expanded_cache_key(key)
+
+
+
+end
+
+
+
+def caching_controller
+
+
+end
+
+
+
+def fetch_or_cache_partial(cache, order_by:)
+
+
+
+I'm not sure where those options are coming from - depends on the caller behavior; hard to trace back.
+
+—
+Reply to this email directly or view it on GitHub.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+name.to_s?
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D58 ANy way to detect the prefix of partials?
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Partials often begin with <# Comment about partial %> - any way to detect that? It'll be tough to diagnose when/why autocaching works.
+
+>>>dhh, Owner
+
+
+We should log a fair chat about all this. Whether automatic caching is kicking in, etc.
+
+>>>kaspth, Owner
+
+I'm looking in to extending the regex to beware of those comments. My current attempt is trying to have an optional capture group something like this /\A(:?<%#.*%>)?<% cache\(?\s*(\w+\.?)/, but it doesn't work yet.
+
+;##D59 Should we use them with instrumentation or with the old.loggger
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@dhh other places in both template and partial_renderer use instrumentation, should we go with as well or a plain old Rails.logger debug call?
+
+>>>kaspth, Owner
+
+Got it! Misremembered turning off capturing for a group as :? instead of ?:. I also added a \n?.
+
+Here are my test cases: https://gist.github.com/kaspth/6ba8ac0356549e219b57. Let me know if you find scenarios I've missed. 😄
+
+>>>kaspth, Owner
+
+I've updated the gist trying to annotate the regex, but Ruby says "unmatched close parenthesis". I can't figure out how to get it working in. I'll upload the latest code without annotation now.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>rafaelfranca, Owner
+
+;##D60 Action controller should not be accessed here
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I don't think we should be accessing Action Controller here.
+
+>>>kaspth, Owner
+
+Thanks, the cache helper in any template will check this anyway so you're right ❤️
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>rafaelfranca, Owner
+
+Same here. Not sure if we changed our minds but we wanted to decouple Action View from Action Pack and this is coupling it more.
+
+>>>kaspth, Owner
+
+👍, we're going to have to extract fragment_cache_key into a separate module included in controllers and views.
+
+Then this would just be @view.fragment_cache_key
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+@rafaelfranca am I referencing this constant right? There's some documentation below that does it like this.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>rafaelfranca, Owner
+
+;##D61 Can't we have duplicate implementation ?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Hmm, it doesn't sounds right to have this in Active Support. Can't we duplicate the implementation? Also why it is required in both frameworks?
+
+>>>kaspth, Owner
+
+Sure, I'll dupe it in CollectionCaching instead.
+
+;##D62 t could go into action view instead
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D61
+;##SEN NEU
+
+Honestly, I don't know. This should go into Action View where the other caching helpers are.
+
+>>>kaspth, Owner
+
+Whoops, I keep forgetting CollectionCaching is mixed into PartialRenderer and not ActionView::Base. I'll dupe it in ActionView::Base instead.
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+;##D63 Are we logging enough?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@dhh @jeremy is this an appropriate amount of logging to you?
+
+;##D64 We could add conditional logging
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D63
+;##SEN NEU
+
+We could potentially add conditional logging to explain why automatic caching didn't kick in.
+Did the collection render several templates? Did you pass a callable cache key? And was or wasn't the template eligible?
+
+We'd probably need to soup the logging code up more though. I'm not exactly happy with soldering it into each of the methods, but it works.
+
+>>>dhh, Owner
+
+;##D65 We could rely on the multi_get render call
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D63
+;##SEN NEU
+
+Hmm, I wonder if it won't actually be enough to rely on the multi_get render call since we'll see lines like "Read fragment views/recordings/431-6/dc02965b56829c216cdad6b48ecfaabc". Not sure what the multi_get lines logs.
+
+>>>kaspth, Owner
+
+I did remember seeing lines containing the fragment, but I don't think they were from read_multi. I'll recheck tomorrow.
+
+I'm also logging the count of partials read from and written to cache. But I don't know how useful that is.
+
+Sorry about this taking so long :)
+
+Kasper
+
+Den 18/02/2015 kl. 22.06 skrev David Heinemeier Hansson notifications@github.com:
+
+In actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb:
+
+def automatic_cache_eligible?
+
+
+end
+
+
+
+def single_template_render?
+
+
+end
+
+
+
+def callable_cache_key?
+
+
+end
+
+
+
+def template_eligible?
+
+;##D66 We could rely on the multi_get render call
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D63
+;##SEN NEU
+
+Hmm, I wonder if it won't actually be enough to rely on the multi_get render call since we'll see lines like "Read fragment views/recordings/431-6/dc02965b56829c216cdad6b48ecfaabc". Not sure what the multi_get lines logs.
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>dhh, Owner
+
+No worries at all. Let’s get it right. Happy to also just get the main logic going, and then working on what the optimal logging mix is second.
+
+On Feb 18, 2015, at 13:20, Kasper Timm Hansen notifications@github.com wrote:
+
+In actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb:
+
+def automatic_cache_eligible?
+
+
+end
+
+
+
+def single_template_render?
+
+
+end
+
+
+
+def callable_cache_key?
+
+
+end
+
+
+
+def template_eligible?
+
+
+
+
+
+I did remember seeing lines containing the fragment, but I don't think they were from read_multi. I'll recheck tomorrow. I'm also logging the count of partials read from and written to cache. But I don't know how useful that is. Sorry about this taking so long :)
+…
+—
+Reply to this email directly or view it on GitHub.
+
+>>>kaspth, Owner
+
+👍 on splitting it out. I can scoop out the logging and you can get it in your app. Let's extract follow up issues from what you are missing. Feel free to assign me to those.
+
+Kasper
+
+Den 18/02/2015 kl. 22.35 skrev David Heinemeier Hansson notifications@github.com:
+
+In actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb:
+
+def automatic_cache_eligible?
+
+
+end
+
+
+
+def single_template_render?
+
+
+end
+
+
+
+def callable_cache_key?
+
+
+end
+
+
+
+def template_eligible?
+
+
+
+No worries at all. Let’s get it right. Happy to also just get the main logic going, and then working on what the optimal logging mix is second.
+…
+—
+Reply to this email directly or view it on GitHub.
+
+
+>>>kaspth, Owner
+
+Okay, I've been looking more into logging and captured this from the logging test:
+
+It seems the cache store doesn't log when using multi read. But the "3 partials multi read from cache." lacks information to be really useful, I think.
+
+>>>dhh, Owner
+
+;##D67 We should just have the multi_get log
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I think we should just have the multi_get log:
+
+;##D68 We wouldn't need anythign else after
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL GEN D67
+;##SEN NEU
+
+And that's actually all we need. We don't need this feature to log anything in particular. It's clear that it's working when multi reads are being logged. Then everything else can just stay the same.
+
+>>>kaspth, Owner
+
+Awesome 👍, I'll swing it tomorrow.
+
+Kasper
+
+Den 19/02/2015 kl. 22.45 skrev David Heinemeier Hansson notifications@github.com:
+
+In actionview/lib/action_view/renderer/partial_renderer/collection_caching.rb:
+
+def automatic_cache_eligible?
+
+
+end
+
+
+
+def single_template_render?
+
+
+end
+
+
+
+def callable_cache_key?
+
+
+end
+
+
+
+def template_eligible?
+
+;##D69 We should just have the multi_get log
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I think we should just have the multi_get log:
+
+Caches multi read:
+
+views/david/2/4184ab71db6849621a4d8820fcd2c0ad
+
+views/david/2/4184ab71db6849621a4d8820fcd2c0ad
+
+views/david/3/4184ab71db6849621a4d8820fcd2c0ad
+
+views/david/3/4184ab71db6849621a4d8820fcd2c0ad
+
+;##D70 We wouldn't need anythign else after
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL GEN D69
+;##SEN NEU
+
+And that's actually all we need. We don't need this feature to log anything in particular. It's clear that it's working when multi reads are being logged. Then everything else can just stay the same.
+
+—
+Reply to this email directly or view it on GitHub.
+
+
+>>>Thread end
+
+>>>kaspth, Owner
+
+Alright, @dhh. I've added instrumentation in Cache and MemCacheStore formatted as you proposed. I've tweaked the internal log method and added instrument_multi to do this.
+
+>>>Thread start
+
+>>>dhh, Owner
+
+✂️ newline and indent everything private.
+
+
+>>>Thread end
+
+>>>dhh, Owner
+
+Awesome. @jeremy do you have any other comments before we merge?
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+Do we have a test demonstrating that the leading <%# … %> is acceptable?
+
+>>>dmitry, Contributor
+
+;##D71 What about other tempalte engines?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What about other template engines, like HAML and SLIM?
+
+>>>kaspth, Owner
+
+@jeremy I added a test for this.
+
+;##D72 They can be easily implemented by them
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D71
+;##SEN NEU
+
+@dmitry I pushed the pattern to a resource_cache_call_pattern on the ERB handler. HAML and SLIM can implement this themselves.
+
+
+>>>Thread end
+
+>>>kaspth, Owner
+
+I've added some documentation for this in the cache_helper.rb file. It seemed best to keep all the caching documentation in one place.
+
+>>>kaspth, Owner
+
+@dhh @jeremy anything more to add? 😄
+
+>>>dhh, Owner
+
+Looking lovely to me. @jeremy, anything else?
+
+>>>dhh, Owner
+
+And thanks for working on this! I'm very excited to see what this will do for our setup.
+
+>>>kaspth, Owner
+
+Sure thing, 👍. I'm pretty excited too :)
+
+>>>jeremy, Owner
+
+🚢
+
+On Tuesday, February 24, 2015, Kasper Timm Hansen notifications@github.com
+wrote:
+
+Sure thing, [image: 👍]. I'm pretty excited too :)
+
+—
+Reply to this email directly or view it on GitHub
+#18948 (comment).
+
+>>>dhh, Owner
+
+🎉
+
+On Feb 25, 2015, at 06:55, Rafael Mendonça França notifications@github.com wrote:
+
+Merged #18948.
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>cristianbica, Contributor
+
+niiiice. @kaspth you should add a changelog entry
+
+>>>kaspth, Owner
+
+@cristianbica right, I'll add one.
+
+>>>dubek, Contributor
+
+So I used the new tests from #20284 and then tried to tackle the resource_cache_call_pattern regex. Generally trying to parsing Ruby code with regex is probably not the correct thing to do, but not sure there is other easy approach for this task here.
+
+The following contents for _commented_customer.html.erb break the tests (which means - they are not caught by the regex):
+
+Two comments at top:
+
+Multi-line comment at top:
+
+Spaces in front of <% cache customer do %> (they are not emitted to the output generated by Erubis):
+
+Extra spaces between <% and cache:
+
+This is probably accidentally caught by the regex, even though it shouldn't ($1 will be _is_full):
+
+The example in the comment says that <% cache notification.event do %> should fail to a extract, but it actually matches and sets $1 to notification..
+
+Many of these are not idiomatic Ruby style; but still it's very strange if caching works OK when you have one space in <% cache ... but stops working (without any notice) when you have two spaces there. You wouldn't expect any performance changes in Ruby programs when you change whitespace in the program.
+
+For 1-4 above you can run erubis -x test/fixtures/customers/_commented_customer.html.erb and see that the output is an identical Ruby program (say if you parse it with Ripper or something like that).
+
+>>>kaspth, Owner
+
+Sweet, you've found some bugs! Rather than burden this already closed pull request, can you open a new issue or if you've beat the regex (or want to do it) can you open a pull request? 😄
+
+We should add more tests for Action View Template's eligible_for_collection_caching?
+
+>>>schneems, Member
+
+Is this behavior mentioned in the guides?
+
+>>>prathamesh-sonpatki, Member
+
+@schneems Yes. It's here http://edgeguides.rubyonrails.org/caching_with_rails.html#collection-caching
+
+>>>ghiculescu, Contributor
+
+Not sure if this should be in a new issue or if a comment here is fine. I recently came across an issue using https://github.com/n8/multi_fetch_fragments on a long list of complicated partials. It turns out the computation of digests for the partial was being repeated n times and thus was taking longer than the time saved by this technique. Specifically, calculating the digest took 13ms, and was being repeated for 300 partials, which was resulting in 4 seconds of overhead before even reading from memcached.
+
+ghiculescu/multi_fetch_fragments@59612d5 is my fix for it. It's a pretty simplistic fix - just disable Rails' digesting if we are providing our own cache keys - but it serves my needs.
+
+I think it would be good to add a similar sort of option to pass through to https://github.com/rails/rails/pull/18948/files#diff-738cc3c10058587e78559e48066ad0bfR54 since otherwise similar issues will come up for other people.
+
+@kaspth does this make sense? Happy to log this somewhere else if you prefer.
+
+edit: just came across n8/multi_fetch_fragments#31 so I'm not the only one having this issue.
+
+>>>kaspth, Owner
+
+@ghiculescu hey 👋
+
+Rails 5 has got you covered. It keeps a template digest cached throughout a request in development (they are expired when the request is finished, so reloading is still possible). See #20361 and my attached pull request for more.
+
+>>>ghiculescu, Contributor
+
+It's an issue in production too @kaspth - though apparently fixed in rails 5 as well #14645 (comment)
+
+>>>kaspth, Owner
+
+@ghiculescu prepared SQL statements are an entirely different feature altogether from template digests. Is there something I'm not getting here?
+
+>>>mickey, Other
+
+;##D73 Why is write_multi not used when writing non cached renders?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Any idea why write_multi is not used when writing the non cached renders?
+
+>>>schneems, Member
+
+;##D73 Why is write_multi not used when writing non cached renders?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Any idea why write_multi is not used when writing the non cached renders?
+
+;##D74 It could be caused by creating many elements
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D73
+;##SEN NEU
+
+I don't know. I haven't looked into it. However I could see a problem if you were creating many many cache items, say hundreds...to keep them all in memory before trying to write them all at the same time. So maybe it would be better to have that be configurable instead of a default.
+
+Either way if you want to add it feel free to submit a PR and we can talk more there.
+
+>>>mickey, Other
+
+@schneems  Makes total sense thanks for the explanation. I'll take a look.
+
+>>>kaspth, Owner
+
+@mickey you mean other than there being no write_multi for ActiveSupport::Cache as far as my google skills can find? 😁
+
+But yeah, do try to implement write_multi and make it work here!
+
+>>>mickey, 👍
+            1
+
+@kaspth Yes sorry about that. I discovered a little earlier that write_multi is a specificity of a redis backend we use.
+
+>>>aried3r, Contributor
+
+@schneems Yes. It's here http://edgeguides.rubyonrails.org/caching_with_rails.html#collection-caching
+
+;##D75 ISn't this incomplete due to 11644fd
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Isn't this incomplete since 11644fd which made it automatic if the partials are set up just right?
+
+>>>kaspth, Owner
+
+Nope, check master that has the latest implementation.
+
+>>>aried3r, Contributor
+
+Got it, found rails/rails@b4558c1. For some reason I was browsing your fork instead of rails/rails. ¯\_(ツ)_/¯
+
+>>>kaspth, Owner
+
+@aried3r that's the one, yeah. 👍
+

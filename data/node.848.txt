@@ -1,0 +1,753 @@
+>>>vkurchatkin, Member
+
+              
+Internal modules can be used to share private code between public modules without risk to expose private APIs to the user.
+
+
+Later some flag (build time or runtime) could be added for making unit-testing possible.
+#569
+
+
+R= 
+
+          
+>>>seishun, Member
+
+              
+Does this actually help? Crazy people will just require('internal/freelist') in their code.
+
+          
+>>>vkurchatkin, Member
+
+              
+that's the idea, they can't. require('internal/whatever/module) works only inside built-in modules. For users everything works as before. That is, if node_modules/internal/whatever/module.js exists, they will get it. Otherwise the will get an error
+
+          
+>>>seishun, Member
+
+              
+Ah, I see now. I'm not sure if it's worth introducing such a framework for just one module which might get removed.
+
+          
+>>>vkurchatkin, Member
+
+              
+It is not just for one module. The idea is to move there everything non-public bit by bit. freelist is the least of mine concerns, because it's not actually shared and could be embedded into _http_common. freelist was just chosen for illustrative and testing purposes.
+
+          
+>>>thlorenz, Contributor
+
+              
+tl;dr if you use undocumented modules you run the risk of your code breaking, no need for us to fix anything here.
+
+
+Not a big fan of this feature.
+If someone uses things that aren't documented then there is a known risk that that code won't work in future versions.
+This is true for a lot more things than modules, i.e. functions on prototypes that aren't part of the API but used internally. Usually those are marked as _functionName.
+
+
+As an example inside readline-vim I depend on readline._ttyWrite but only consider myself lucky that the code didn't break due to the function name changing. However I knew that risk when I wrote that code.
+
+
+Same is true for any modules only to be used internally. If you wanna use them, fine but just know the risk. But if you start trying to encapsulate those you'd then also have to encapsulate the _private functions.
+
+
+From my experience in other OO environments I've come to the conclusion that encapsulation is overrated. Just let the users make the right decisions. Marking things private explicitly or implicitly (by not documenting them) should suffice.
+
+          
+>>>brendanashworth, Member
+
+              
+I'm unsure about this change. Yes, developers using private modules causes hesitancy when putting breaking changes into the source and not bumping semver-major, but we have to draw the line somewhere - and I think that should be whether or not it is documented. The programmer should know what they are doing, and if they know what they are doing and want to require a private module, we shouldn't restrict them from doing that.
+
+          
+>>>vkurchatkin, Member
+
+              
+What you are saying is absolutely right, but also purely theoretical. When time comes to remove something that was never documented we still HAVE TO evaluate the risks of removing to it. This is the burden I want to get rid of.
+
+
+
+
+However I knew that risk when I wrote that code.
+
+
+
+
+You know the risk, someone doesn't. Someone who requires you module doesn't. Removing this method can potentially break thousands of modules and the only person who knew the risk was you.
+
+
+
+
+But if you start trying to encapsulate those you'd then also have to encapsulate the _private functions.
+
+
+
+
+Not HAVE TO. But this would be good too, eventually.
+
+
+
+
+Marking things private explicitly or implicitly (by not documenting them) should suffice.
+
+
+
+
+This is exactly that, marking modules as private very explicitly.
+
+          
+>>>thlorenz, Contributor
+
+              
+Not sure if it was clear, but I meant to stress implicitly (by not documenting them) should suffice above, meaning that no further action beyond not documenting is needed.
+
+
+
+
+You know the risk, someone doesn't.
+
+
+
+
+When I wrote that code I wasn't involved with node myself, but knew as a developer that undocumented features and/or functions marked _ are considered private API and I'm running a risk when using it.
+
+
+Most devs are aware of this as I was and if not they'll have to learn the hard way unfortunately. However jumping through hoops just to somehow disable devs not to follow these conventions is over the top IMHO.
+
+          
+>>>vkurchatkin, Member
+
+              
+While you are right (as I have already said), what you say is unrealistic and unreasonable.
+
+
+Let's say _ and not documenting is enough. So let's remove util._extend. I bet half of npm would break. It can be done in one line, there numerous libraries on npm, and people still use it.
+
+
+It's so easy to discover something not documented using REPL. root instead of global? cool I'll use that!. process.EventEmitter? cool, one require less. And so one. People who do that are asking for trouble, no doubt. But what about people depending on their modules? They do nothing wrong.
+
+
+I understand your stance, but you give no cons. Here are the pros (from my point of view):
+
+
+
+
+true privacy, that what people always wanted in javascript, but had to go with _;
+
+
+encourages code sharing in lib;
+
+
+encourages modularity in lib- we can have small files, deep structure, etc. (/lib/internal/http/parser.js)
+
+
+reduces risks or refactoring.
+
+
+
+
+Some references:
+
+
+https://github.com/search?l=javascript&q=util._extend&ref=searchresults&type=Code&utf8=%E2%9C%93
+iojs#669
+#825
+#766
+joyent/node#6621
+joyent/node#8533
+
+          
+>>>meandmycode, Other
+
+              
+I'd agree that it's io.js / node that pay for other developers risks. Especially with how graph like dependencies are in node it's easy for one person's risk to affect hundreds without them realizing. In other languages it's a lot harder to shoot yourself in the foot (.NET for example requires you write reflection code and a level of execution permission that people don't assume).
+
+
+This will always be a balance but if one of io.js goals is agility then it seems to fit.
+
+          
+>>>thlorenz, Contributor
+
+              
+I agree that the convention WRT _ private functions were not followed consistently which doesn't mean we have to steer away from those conventions completely.
+
+
+But let's get the discussion back on track to what this PR is about.
+Here is my opinion and it'll be my final comment in this thread (hopefully others will add theirs so we can come to the right decision here):
+
+
+Internal modules to prevent users from doing things that may cause problems for them would be nice and if they came at no cost I'd be all for it. However the price to pay for this (added complexity in the code base and possible confusion about what's going on for people trying to grok the code base) is just not worth it IMO.
+So I'm a clear 👎 on this.
+
+          
+>>>tellnes, Member
+
+              
+I'm generally in line with @thlorenz points in this thread. But if we should implement something like this, I don't think creating a magic internal folder is the way to go. I think a better solution would be to create a list of the modules which should be exported similar to how we are defining what should be exported in modules by adding a property to module.export.
+
+          
+>>>seishun, Member
+
+              
+-1 for reasons already outlined by @thlorenz and also because it doesn't solve the problem completely anyway. There are still undocumented object properties and undocumented exports on otherwise public modules.
+
+          
+>>>Qard, Member
+
+              
+Indeed. Nice try, but only a partial fix.
+
+
+Also, I would've gone the route of freelist being in a node_modules folder only resolvable from other core files, so it could just work like any other module dependency not being accessible without doing require('parent/node_modules/dependency').
+
+          
+>>>chrisdickinson, Contributor
+
+              
+I don't have time at the moment to fully write this up at the moment, but I actually would like to have this ability in core.
+
+          
+>>>brendanashworth, Member
+
+              
+For the sake of the functionality (regardless of my stance), why not just block require's starting with an underscore rather than the folder?
+
+
+i.e.:
+
+
+
+
+          
+>>>tellnes, Member
+
+              
++1 for underscore in favor of internal/
+
+          
+>>>vkurchatkin, Member
+
+              
+
+
+For the sake of the functionality (regardless of my stance), why not just block require's starting with an underscore rather than the folder
+
+
+
+
+@brendanashworth that would be an immediate breaking change. The idea is to leave underscored files and add deprecation notice to them until 2.0.0. Also a part of the PR is enabling subfolders in `lib/', which is also nice to have.
+
+
+
+
+There are still undocumented object properties and undocumented exports on otherwise public modules.
+
+
+
+
+@seishun They are on my radar too, but this is a first essential step. If we want to move private stuff, we need a place where to move it first.
+
+          
+>>>trevnorris, Contributor
+
+              
+We should also consider, as best we can, the long term effects with ES6 modules.
+
+          
+>>>chrisdickinson, Contributor
+
+              
+This is a great example of a place where I'd love to be able to have modules private to io.js – it would be great to have an internal module that allowed io.js internals to place "high priority" event listeners, vs. reaching into other object state.
+
+          
+>>>benjamingr, Member
+
+              
+When I started reading it sounded like a bad idea but I think @vkurchatkin makes some really good arguments in favour encapsulation here.
+
+
+In many languages it's possible to use modules internally but not expose them to the outside. This isn't only a problem in core, it would also be a nice ability in userland to signal that a specific file from a module should not be included directly. Popular userland libraries share the issue.
+
+
+Something like a:
+
+
+
+
+module[Symbol.for("internal")] = true;
+
+
+
+
+Which would mean this file should not be included from the outside - only from within the module or core. It's not a well thought out idea but I hope it gets the point across.
+
+
+I also think that @trevnorris's comments about ES6 modules are really important - any change here can have an impact on ES6 modules that don't do this sort of thing.
+
+          
+>>>brendanashworth, Member
+
+              
+
+
+@brendanashworth that would be an immediate breaking change. The idea is to leave underscored files and add deprecation notice to them until 2.0.0. Also a part of the PR is enabling subfolders in `lib/', which is also nice to have.
+
+
+
+
+How so? I think it all could be done the same way - issuing a deprecation notice when they are require'd via the module code. It could then be changed to throw an error on 2.0.0.
+
+
+The change for enabled subfolders could also be separated into a new commit.
+
+          
+>>>AlexYursha, Contributor
+
+              
+Why not just forbid traversing inside the dependency in v2.0.0? What if we could just do require('module_name') and not require('module_name/some_internal_folder/some_internal_file')? Let a module export one thing and forbid everything else on the require('module_name') level. What for the files and folders internal to our modules we'll just require('./relative_file_path') them.
+
+
+I also doubt that its a wise idea to implement modules differently in core and in the userland.
+
+          
+>>>benjamingr, Member
+
+              
+@yursha because being able to require parts of a library or a module is super useful and a lot of packages use that ability.
+
+          
+>>>vkurchatkin, Member
+
+              
+
+
+I also doubt that its a wise idea to implement modules differently in core and in the userland
+
+
+
+
+They are already implemented differently. There are many reasons for that, both historical and practical.
+
+          
+>>>AlexYursha, Contributor
+
+              
+@vkurchatkin Then is your fix addressing only internal implementation and therefore intended to ease the life of io.js maintainers only? What about userland module's maintainers who also suffer from the fact that people carelessly consume their modules' private functionality?
+
+          
+>>>AlexYursha, Contributor
+
+              
+@benjamingr Could you please give a famous example? Can't understand why not just modularise the library itself then.
+
+          
+>>>vkurchatkin, Member
+
+              
+@yursha Also a problem, but much harder to solve. If we prohibit require('some_module/lib/internal.js') people still could use require('../node_modules/some_module/lib/internal.js')
+
+          
+>>>tellnes, Member
+
+              
+@yursha Internal and userland modules are a different story. Your feature request to support this for userland modules is a real one, but out of scope for this pull request.
+
+
+If you can come up with a good and clean way which make it possible to require parts of a module like it works today and at the same time lets you define some files as unrequireable, then you maybe have a solution.
+
+          
+>>>AlexYursha, Contributor
+
+              
+@vkurchatkin Forbidding relative paths which contain node_modules segment will solve that problem. It's vital to implement a proper module system with good encapsulation. Otherwise a lot of code in NPM will either stuck under fear of changes or will get broken.
+
+          
+>>>AlexYursha, Contributor
+
+              
+@tellnes Thanks, for now I'm just trying to understand why we need requiring parts of the module in the first place.
+
+
+FWIW, I also find it confusing that the term module is used for both a single source file and a much coarser npm module. We should come to separate terms for those to make all module-related discussions more legible.
+
+          
+>>>tellnes, Member
+
+              
+@yursha Like @benjamingr said. It is super useful. For an example, look at lodash.
+
+          
+>>>vkurchatkin, Member
+
+              
+
+
+I'm just trying to understand why we need requiring parts of the module in the first place.
+
+
+
+
+Useful for browserify. Otherwise index.js with explicit exports is fine
+
+          
+>>>AlexYursha, Contributor
+
+              
+@tellnes lodash ≥ v3.0.0. has a better solution. Take a look.
+
+          
+>>>AlexYursha, Contributor
+
+              
+@vkurchatkin Could you please give a concrete example related to browserify? Sorry, but haven't time to learn it yet.
+
+          
+>>>vkurchatkin, Member
+
+              
+@yursha browserify includes only files that are explicitly required. So if you require index.js it will include everything, while you might need only a couple of files
+
+          
+>>>tellnes, Member
+
+              
+@yursha Ok, lodash is probably not the best example, but the point stand.
+
+
+On the server side it is only a little bit higher memory usage, but for browserify it makes a big difference in filesize. You can argue that if it is designed to be included separated it should be different full blown packages. But sometimes substack-style is not the best solution. I've used it a lot for private modules (not npm published).
+
+          
+>>>AlexYursha, Contributor
+
+              
+@vkurchatkin Thanks for the explanation!
+
+
+@tellnes Every good thing has its drawbacks and what we are talking about are trade-offs.
+
+
+If are choosing between right approach to encapsulation and one more option of doing modularisation I would vote for the first. Introducing new (possibly redundant) approaches to modularisation (like requiring parts of a module instead of splitting it) that can compromise encapsulation and maintainability is at least questionable for me. So if mistakes were made in early design why not fix them in v2.0.0?
+
+
+P.S.: That applies to how browserify functions as well.
+
+          
+>>>chrisdickinson, Contributor
+
+              
+@yursha Forbidding deep require's is a separate feature request from being able to declare modules "internal" to core, and is extremely unlikely to be accepted. Changing how the require system works for userland is off the table, even for a major release – the subsystem is locked. Additionally, folks depend on the current behavior (readable-stream and bops come to mind).
+
+
+This PR is scoped to adding "private" modules to core only. This does not imply breaking changes for folks using free_list directly, only that in the future we have the option to deprecrate existing internal modules; and that we can avoid similar situations by introducing private functionality as truly private.
+To the concern of having two systems: native modules already resolve differently than userland modules, so this isn't a huge divergence from what's already there.
+
+          
+>>>AlexYursha, Contributor
+
+              
+@chrisdickinson You guys always talking about the fact that modulessubsystem is locked, but don't discuss actual design pros and contras what I think is much more important. What do you mean under locked by the way? Does it mean that even if API design can be improved it will not change ever?  This wording in the official docs sounds somewhat strange:
+
+
+
+
+Some [API] are so proven, and so relied upon, that they are unlikely to ever change at all.
+
+
+
+
+If APIs will look the same in 2025 as they are now this eventually means a full-stop in the evolution for io.js when all major subsystems reach the locked status. Is this what folks really want to achieve with io.js? I just can't embrace it with my mind. Help needed.
+
+          
+>>>brendanashworth, Member
+
+              
+@yursha the point you brought up was recently discussed - now all modules have been brought down to "stable" status besides the timers and modules modules, which were locked because we can't risk a change that would end up breaking part of the massive userland system. The goal is no longer to bring modules to locked status but rather to stable.
+
+          
+>>>AlexYursha, Contributor
+
+              
+@brendanashworth Thanks for the insight.
+
+
+From my experience the software is just getting dated. Huge parts of userland are not maintained and hang dead on npm taking useful names and "asking" core to be backwards compatible.
+
+
+The world changes, people invent new things and breaking changes are inevitable if we aim to have a lean, easy to understand and evolving core. We can try to introduce them as rarely as possible but trying to avoid them completely can probably do more harm than use in the long term. So I still think there should be a place at official io.js where changes to modules and timers can be discussed to allow further evolution.
+
+          
+>>>vkurchatkin, Member
+
+              
+@yursha I'm sure that this is good place to discuss all kinds of radical changes: https://github.com/iojs/ng
+
+          
+>>>brendanashworth, Member
+
+              
+Would there be any way to disable the use of these internal modules at all? I'm doing some bug tracing right now in the REPL, learning more about the code base, require()'ing some internal modules which would be impossible with this change. Lets not forget that userland modules aren't the only places that internal modules can be used properly.
+
+          
+>>>vkurchatkin, Member
+
+              
+@brendanashworth
+
+
+
+
+Later some flag (build time or runtime) could be added for making unit-testing possible.
+
+
+
+
+What I meant was that we can compile iojs with something like IOJS_ALLOW_INTERNALS and then we can require internals as usual.
+
+          
+>>>chrisdickinson, Contributor
+
+              
+This might stray into "changing the public API" a bit too much, but: instead of gating this with an startsWith statement inside of the module system, what if we added another function parameter to the module preamble for native modules, named something like builtinRequire? The appropriate builtinRequire function would be passed to internal modules, but a stub that throws a reasonable exception would be passed to userland modules, unless a flag or env var was set.
+
+          
+>>>vkurchatkin, Member
+
+              
+@chrisdickinson I thought about doing that, but then realised that require in builtins is essentially builtinRequire already.
+
+
+
+
+instead of gating this with an startsWith statement inside of the module system
+
+
+
+
+We still need to do it if we use the same js2c infrustructure.
+
+          
+>>>vkurchatkin, Member
+
+              
+Added NODE_EXPOSE_INTERNALS switch for tests, debugging, etc
+
+          
+>>>trevnorris, Contributor
+
+              
+@vkurchatkin shouldn't it be a flag, like how V8 does --expose-gc or --expose-natives-as?
+
+          
+>>>vkurchatkin, Member
+
+              
+@trevnorris this makes sense, will do
+
+          
+>>>vkurchatkin, Member
+
+              
+@trevnorris done!
+
+          
+>>>rvagg, Owner
+
+              
+FTR: it's not entirely clear from the minutes but I believe this was accepted at the last TC meeting, see #1123
+
+
+removing tc-agenda label
+
+          
+>>>trevnorris, Contributor
+
+              
+@vkurchatkin Great. Looking good. When this is merged let's just remember to include that freelist has been moved to a native module. LGTM.
+
+          
+>>>vkurchatkin, Member
+
+              
+@trevnorris do you mean in changelog? Nothing has changed from user perspective (yet), so not even worth mentioning. Moving stuff to /internal and deprecating is the next logical step.
+
+
+@bnoordhuis would you mind taking a look? I'm especially worried about js2c.py. haven't written a line of python before and not particularly fond of escaping solution (though it seems to me that are no edge cases unless we deliberately use $ in internal paths, but in that case compilation should just fail and that's it )
+
+          
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+        
+You might as well remove this commented out code while you're here.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+        
+And here.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+        
+Femto-nit: can you append a comma?  That makes the diff less noisy when new entries are added.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+        
+Shouldn't this file be called freelist.js or something?  Avoids unnecessary churn when another module is added.
+
+      
+>>>vkurchatkin, Member
+
+        
+Not sure what do you mean. js2c drops extensions so this is how we require internal modules. This particular test checks that if we try it in userland module and there is node_modules/internal/freelist.js everything works as before.
+
+      
+>>>bnoordhuis, Owner
+
+        
+The directory is called test/fixtures/internal-modules but it's really only about the freelist module.  Maybe move index.js to test/fixtures/internal-modules/freelist?
+
+      
+>>>vkurchatkin, Member
+
+        
+doesn't change a lot. we only need to test this once with any module. it could be anything other than freelist
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+        
+Another femto-nit: maybe something that stands out more, like the number 42?  Makes it more obvious in the test that it's from a fixture.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+        
+I'm not 100% sure if you should be using os.sep here... I guess it depends on whether gyp converts the slashes to backslashes on Windows.
+
+      
+>>>vkurchatkin, Member
+
+        
+good catch. someone needs to check this on windows
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+        
+Please wrap at 80 columns here.
+
+      
+
+
+>>>Thread end
+
+>>>bnoordhuis, Owner
+
+              
+@vkurchatkin Can you add a test that verifies that --expose_internals works?  Should be trivial:
+
+
+
+
+
+CI: https://jenkins-iojs.nodesource.com/view/iojs/job/iojs+any-pr+multi/291/
+
+          
+>>>vkurchatkin, Member
+
+              
+@bnoordhuis updated, PTAL
+
+          
+>>>bnoordhuis, Owner
+
+              
+LGTM and sorry for the delay.  I'd suggest landing it after the 1.6.0 release.
+
+          
+>>>vkurchatkin, Member
+
+              
+@bnoordhuis thank you. I'm going to land this in a couple of days
+
+          
+>>>vkurchatkin, Member
+
+              
+landed in 2db758c
+
+          
+>>>Fishrock123, Owner
+
+              
+This commit causes the entire windows test suite to fail due to some config loading issue: https://jenkins-iojs.nodesource.com/view/iojs/job/iojs+any-pr+multi/381/nodes=iojs-win2008r2/console
+
+
+
+          
+>>>Fishrock123, Owner
+
+              
+I don't really understand how it could cause that, but the parent commit works fine, and this ones throws like crazy.
+
+          
+>>>bnoordhuis, Owner
+
+              
+I'll look into it.  I think I know what's causing it and I guess I'm partially to blame for lgtm'ing without pointing out the CI failures.
+
+          
+>>>vkurchatkin, Member
+
+              
+Looks like gyp passes paths to js2c.py differently on windows
+
+          
+>>>bnoordhuis, Owner
+
+              
+FTR: iojs#1281
+
+          

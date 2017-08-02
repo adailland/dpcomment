@@ -1,0 +1,2057 @@
+>>>dhh, Owner
+
+WIP.
+
+>>>Thread start
+
+>>>rafaelfranca, Owner
+
+;##D1 Can we avoid checking ActiveJob?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Can we avoid checking ActiveJob here? This is a high coupling between the two frameworks.
+
+>>>rafaelfranca, Owner
+
+;##D2 The dependency should be inverted
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+I believe we should invert this dependency. Active Job should inject behaviour at Action Mailer when loaded, not Action Mailer that have to depend on Active Job.
+
+>>>seuros, Member
+
+;##D3 THere's a need to prepend the mixin in actiomail/base
+;##ROLE PM
+;##INV F
+;##FORM REFR D1
+;##REL NEW
+;##SEN NEU
+
+We need to prepend the mixin in actionmailer/base. We found out that prepend is not supported in ruby 1.9.3.
+Check this
+
+>>>jeremy, Owner
+
+;##D4 It's Action Mailer's job, not active job's
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D3
+;##SEN NEU
+
+IMO it's Action Mailer's job to be able to delay email. Active Job shouldn't care or know about that.
+
+;##D5 We could instead return a future emssage delivery
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D4
+;##SEN NEU
+
+Rather than doing this check, we can always return a future message delivery. DeliverLater::MailMessageWrapper is a mouthful. Call it something like a MessageDelivery.
+
+When people want to deliver it later, they call .deliver_later and that's that. The message isn't rendered, it's enqueued.
+
+When people want to deliver it now, they call .deliver which passes through to the delegate object, the underlying Message.
+
+So we preserve existing behavior and don't need special conditionals.
+
+>>>rafaelfranca, Owner
+
+I think We can make it work easily.
+
+;##D6 We could make it work by playing with ActionMailer:Base
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D5
+;##SEN NEU
+
+First we need to move this definition of method_missing to a new module that we will included in the singleton class of ActionMailer::Base. After we only need to include the ActiveJob::DeliverLater module on ActionMailer::Base.singleton_class.
+
+Here a pseudo-implementation:
+
+>>>rafaelfranca, Owner
+
+I like @jeremy's idea
+
+>>>cristianbica, Contributor
+
+I'm with @jeremy on who knows what: ActiveJob doesn't know about ActionMailer.
+@rafaelfranca nice workaround for ruby's override method in mixin issue but if ActionMailer knows about delivering later we can hook the logic in the ActionMailer::Base method_missing
+
+>>>dhh, Owner
+
+👍 to @jeremy's idea as well.
+
+On Aug 13, 2014, at 10:45, Rafael Mendonça França notifications@github.com wrote:
+
+In actionmailer/lib/action_mailer/base.rb:
+
+@@ -549,7 +549,11 @@ def set_payload_for_mail(payload, mail) #:nodoc:
+
+I like @jeremy's idea
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>cristianbica, Contributor
+
+;##D7 We then can make DeliveRLAter::MailMessageWrapper a generic MessageDelivery
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@jeremy so we make the DeliverLater::MailMessageWrapper a generic MessageDelivery and there we implement deliver_later which checks if ActiveJob is defined.
+The initial implementation of the wrapper wasn't building the Mail::Message on creation (didn't had the __getobj__ in initialize). There were some tests failing because they were testing behaviour from the mailer methods (ex: assert_raises(RuntimeError) { LateInlineAttachmentMailer.welcome }) and then we created the Mail::Message anyway. There were like less than 10 test cases so we can fix them (maybe using the new #itself method :) ).
+So to be clear: this implementation will change the behaviour of mailers. SomeMailer.some_email will return an ActionMailer::MessageDelivery which will be a Delegator around the Mail::Message which will be built lazy.
+
+>>>jeremy, Owner
+
+;##D8 MEssageDelivery#deliver_later doesn't need to be an active job check
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D7
+;##SEN NEU
+
+@cristianbica MessageDelivery#deliver_later needn't even do the Active Job check. If Active Job isn't available and the app is calling deliver_later, that's a bug and we should just let it raise whatever exception bubbles up.
+
+>>>seuros, Member
+
+@jeremy , I'm working on it now.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>matthewd, Owner
+
+e?
+
+;##D9 Why is the stder message the only one here
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Also, why the stderr message here, but not on the others?
+
+>>>cristianbica, Contributor
+
+;##D10 Resque is the only adapter with a separate gem
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D9
+;##SEN NEU
+
+missing an => e ... I'll add that.
+about why here: dhh added that but I think we stderr here because resque is the only adapter that has a separate gem for enqueue_at/_in and probably users will forget to add it.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+Was this from another recent PR?
+
+>>>seuros, Member
+
+No. We noticed the bug while working of this PR.
+
+With the new wrapper, the email is lazy loaded.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+;##D11 Why do we even inherit from delegator?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Why even bother inheriting from Delegator, if we still need to do method_missing?
+
+>>>cristianbica, Contributor
+
+;##D12 We can drop it if we fix the bugs in NullMailer
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D11
+;##SEN NEU
+
+Initially we didn't implement the method_missing here but it was an workaround for some failing tests. Something related to NullMail. I think we can fix the bugs in NullMailer and drop this. I'll take a look
+
+>>>cristianbica, Contributor
+
+Removed the method_missing
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D13 We are not actually delaying deliveries
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+We aren't actually delaying deliveries. It's just a delivery job.
+
+>>>seuros, Member
+
+I will rename it
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D14 Where is #itslef used?
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Where is #itself used here?
+n
+>>>seuros, Member
+
+I forgot this require.
+
+;##D15 It got replaced with .message
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D14
+;##SEN NEU
+
+We first used it in
+LateInlineAttachmentMailer.welcome.itself but decided it make it more clear with .message
+
+>>>dhh, Owner
+
+Sounds like we can remove this require, then.
+
+>>>seuros, Member
+
+Yes, i will do it as part of another commit.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+What are these tests telling us? Bunch of stubs?
+
+Also, assertion arguments are expected, actual - so you'll want to flip the order.
+
+>>>seuros, Member
+
+ok
+
+>>>tenderlove, Owner
+
+;##D16 Are these stub actually testing our system?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Agree with @jeremy.  What is the point of these stubs?  It looks like we're just testing stubs rather than testing our system.  What is the point?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D17 It would be nice to have this configurable in the Railtie
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Would like this to be configurable in the Railtie and default to the application name.
+
+>>>cristianbica, Contributor
+
+;##D18 Another option is to replace it with a :default_queue_name
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D17
+;##SEN NEU
+
+Actually I wanted to remove this and add a :default_queue_name. If the queue is specified in the job it will use it or else it will use the default_queue_name.
+I see no point in having my queue prefixed by something. For some of the adapter you need to specify on which queue to listen for and for newcomers the default configuration will "not be so good" :). Also the default_queue should be default. I think most of the adapter listen on default so new users will have better defaults.
+
+/cc @dhh
+
+>>>cristianbica, Contributor
+
+Did the above at seuros/rails@94ae25e. @dhh wanna take a look please?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+Logger.new(nil) will work instead and is cross platform.
+
+>>>seuros, Member
+
+Thanks
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D19 This should generate a job that takes some argument
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Should generate a job that takes some arguments so it's clear that's the typical usage. Schedule a job with an AR instance as an argument.
+
+>>>cristianbica, Contributor
+
+Agree. I'll do that
+
+>>>cristianbica, Contributor
+
+Done
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+;##D20 Why does it have to be this specific class?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEw
+;##SEN NEU
+
+Is this actually a requirement?  Why does it have to be this class?
+
+>>>seuros, Member
+
+;##D21 It's a wrapper around Mail::message
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D20
+;##SEN NEU
+
+ActionMailer::MessageDelivery is a wrapper around Mail::Message
+
+>>>tenderlove, Owner
+
+So?
+
+>>>cristianbica, Contributor
+
+;##D22 It's needed to test that the return is correct
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D21
+;##SEN NEU
+
+With AJ SomeMailer.some_method_mailer is a wrapper around whatever SomeMailer.some_method_mailer returns. We need to test that somehow. Either by the class name or by any methods implemented on the wrapper.
+
+>>>tenderlove, Owner
+
+;##D23 Couldn't we just assert it?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D22
+;##SEN NEU
+
+Could you assert that the wrapped object doesn't equal the unwrapped one?
+
+>>>seuros, Member
+
+assert_not_equal Mail::Message , @mail.class ?
+
+>>>tenderlove, Owner
+
+;##D24 is there any way to get the actual message?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL ELAB D23
+;##SEN NEU
+
+Is there no way to get the actual message object, not the wrapped one?
+
+>>>seuros, Member
+
+@mail.message
+
+>>>cristianbica, Contributor
+
+;##D25 We could assert on the wrapper
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D24
+;##SEN NEU
+
+@tenderlove as the wrapper is a Delegator we cannot because delegator overrides == and compares the wrapped object (so @mail==@mail.message will be true). What we can assert is that the class of the wrapper is different from the class of the wrapped object: assert_not_equal @mail.class, @mail.message.class. Works for you?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+;##D26 Should we really couple tests with internal details?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is this public API?  Should we really be coupling the tests with internal implementation details like this?
+
+>>>seuros, Member
+
+The message is lazy loaded now.
+What about
+
+>>>tenderlove, Owner
+
+;##D27 Why should we care about the class?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL ELA D26
+;##SEN NEU
+
+I don't think you're following me.  Why do you care what class it is?  Just do assert @mail.message.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+Are we going to have to update this in parallel with the Gemfile?  :'(
+
+>>>tenderlove, Owner
+
+Every time this list changes, do we have to update this list as well?
+
+>>>DouweM, Contributor
+
+Every time tests for an adapter are added, yes.
+
+>>>cristianbica, Contributor
+
+Well every time a new adapter is added or an adapter removed we have to:
+
+update the Gemfile
+
+update the activejob/Rakefile
+
+update activejob/README.md
+
+update the guides
+
+and of course delete /  add the adapter files for enqueueing and testing
+
+Not very optional :). From the above we can remove most the README.md and point to the guides.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+;##D28 Is the logger not sued by default?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Does this mean we don't use the logger from the application by default?
+
+If this references ActiveSupport::TaggedLogging and ActiveSupport::Logger, it should also require those files.
+
+>>>DouweM, Contributor
+
+I think the railtie does that.
+
+>>>seuros, Member
+
+yes it does
+
+>>>carlosantoniodasilva, Owner
+
+;##D29 It might be better to use class_attribute
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D28
+;##SEN NEU
+
+Plus it might be better to use class_attribute, so that it can be overridden without affecting parents.
+
+>>>cristianbica, Contributor
+
+;##D30 THere's no need to change the logger just for a subclas
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D28
+;##SEN NEU
+
+Yep it set the railtie does it.
+I see no need in being able to change the logger just for a ActiveJob::Base subclass. Anyway if anyone wants to do that they can override def logger in that subclass.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+Why are you using a global variable here?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+Same question.
+
+>>>seuros, Member
+
+The worker populate this Global variable there!
+
+>>>dhh, Owner
+
+;##D31 The global is not a problem here
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I think a global is just fine. The job and the test aren't connected. The global is a stand-in for any other global in your system that the jobs would be working against, like a database.
+
+>>>tenderlove, Owner
+
+;##D32 It's not thread or process safe
+;##ROLE PM
+;##INV F
+;##FORM SOL 
+;##REL REFR D31
+;##SEN NEU
+
+@dhh it's not thread or process safe.  We should at least be using a thread local variable.  Databases have locks for us to coordinate updates, global variables do not. :-)
+
+>>>dhh, Owner
+
+;##D33 DOes it matter in this case?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL REFR D32
+;##SEN NEU
+
+Why does it matter for these tests though? Is this in preparation for you adding a threaded runner :)?
+
+On Aug 14, 2014, at 18:33, Aaron Patterson notifications@github.com wrote:
+
+In activejob/test/cases/logging_test.rb:
+
+class TestLogger < ActiveSupport::Logger
+
+def initialize
+
+end
+
+def messages
+
+end
+
+end
+
+def setup
+
+super
+
+;##D34 It's not thread or process safe
+;##ROLE OP
+;##INV F
+;##FORM SOL 
+;##REL REFR D31
+;##SEN NEU
+
+$BUFFER = []
+@dhh it's not thread or process safe. We should at least be using a thread local variable. Databases have locks for us to coordinate updates, global variables do not. :-)
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>tenderlove, Owner
+
+;##D35 It could be replaced with a class mehtod
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D33
+;##SEN NEU
+
+Trying to reason about a global variables is extremely annoying -- even in tests.  We could at least place a class method on the job itself and mutate that.  I don't mind that global state is being changed, I mind that it's not hidden behind methods so we can lock (or do whatever).
+
+>>>cristianbica, Contributor
+
+;##D36 We could replace it with a testing buffer module
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D35
+;##SEN NEU
+
+I'll try something. I was thinking of a TestingBuffer module that responds to add, include?, clear.
+
+>>>tenderlove, Owner
+
+;##D37 A thread local variable would be good for now
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D36
+;##SEN NEU
+
+@cristianbica that would work. I think a thread local variable would be totally fine for now.
+
+>>>dhh, Owner
+
+;##D38 It is not needed though
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D35
+;##SEN NEU
+
+YAGNI, in my opinion. When a case arises where we do need to wrap this, we wrap it. It's only in test code and it's only a handful of lines.
+
+On Aug 14, 2014, at 19:17, Aaron Patterson notifications@github.com wrote:
+
+In activejob/test/cases/logging_test.rb:
+
+class TestLogger < ActiveSupport::Logger
+
+def initialize
+
+end
+
+def messages
+
+end
+
+end
+
+def setup
+
+super
+
+;##D39 It could be replaced with a class mehtod
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D33
+;##SEN NEU
+
+$BUFFER = []
+Trying to reason about a global variables is extremely annoying -- even in tests. We could at least place a class method on the job itself and mutate that. I don't mind that global state is being changed, I mind that it's not hidden behind methods so we can lock (or do whatever).
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>cristianbica, Contributor
+
+Did a search for $BUFFER and replaced with Thread.current[:ajbuffer]
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+ಠ_ಠ
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+:-(
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+Let's think of a different way to do this besides using a global!
+
+>>>carlosantoniodasilva, Owner
+
+Could at least have a class attribute with the messages you want to store to test against it, it's more self-contained.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+;##D40 What are details abotu this rescue?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What does this rescue from?  When does it rescue? Why does it rescue?  Can we just use normal Ruby?
+
+>>>seuros, Member
+
+;##D41 It's for the david param
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D40
+;##SEN NEU
+
+It rescue when perform is called with 'david' as params
+
+>>>dhh, Owner
+
+;##D42 It's for exceptional handling behaviour
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+rescue_from allows us to declare exceptional handling behavior at the class level. Just like we do with controllers in Action Pack. Same justification.
+
+>>>DouweM, Contributor
+
+;##D43 It's also rescues from deserialization
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+It also enables rescuing from deserialization errors (for example a model referenced using global id no longer existing), which wouldn't be possible with begin/rescue inside perform.
+
+>>>tenderlove, Owner
+
+@dhh if this code is from AP, then what are we testing?  If we know rescue_from works, why are we testing it?
+
+Besides that, it seems like a great way to accidentally create an infinite loop:
+
+;##D44 It doesn't seems deserialization could throw an error here
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D43
+;##SEN NEU
+
+@DouweM I don't actually see a place where deserialization will raise an exception, but presumably you could implement execute and call super with a begin / rescue.
+
+>>>DouweM, Contributor
+
+We're testing retry_now and proper falling through of OtherError (there used to be abut there).
+
+Accidental infinite loop because of retry_now, you mean? Doesn't the same go for the retry keyword? Rescuing from ArgumentError is a terrible idea anyway, and just here to illustrate rescue_from's re-enqueueing behavior.
+
+;##D45 Deserialization could totally throw an error
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D44
+;##SEN NEU
+
+Deserialization calls ActiveModel::GlobalLocator.locate, which calls Model.find, which could definitely raise ActiveRecord::RecordNotFound (https://github.com/rails/activemodel-globalid/blob/master/lib/active_model/global_locator.rb#L7). This is common enough that we don't want people to have to override the internal method execute, and besides, people know rescue_from from AC. Also see the discussion here: rails/activejob#25 which went into another direction as for implementation but concerns the same issue.
+
+>>>tenderlove, Owner
+
+Accidental infinite loop because of retry_now, you mean? Doesn't the same go for the retry keyword? Rescuing from ArgumentError is a terrible idea anyway, and just here to illustrate rescue_from's re-enqueueing behavior.
+
+Yes, retry would have the same behavior. But which of these might look like there's an infinite loop?
+
+Or:
+
+;##D46 An exception can't have the same logic for each method
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Sorry, I think rescue_from is a bad idea in this context.  Surely rescuing some particular exception can't have the same logic for every single method in your object.  I don't mind if rescue_from is available in the job class, but we won't be using it in our apps.  I'd rather do it the OO way and inherit / call super.  If an exception is happening in an unexpected place, we should handle it in that one place, not some disconnected global way.
+
+I'm unsure how a an AJ Job is so similar to a controller that it warrants the same justification for this feature.
+
+>>>DouweM, Contributor
+
+Yes, retry would have the same behavior. But which of these might look like there's an infinite loop?
+
+If we're leaving in the rescue_from block, I think it's about equal, with rescue error one line away from the retry action and just a couple more from the culprit code.
+
+;##D47 You would never retur after rescuing an argumenterror
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Both examples are kind of dumb though, because you'd never rescue ArgumentError and retry. In actual non-test jobs, the developer has made the conscious decision the error they're explicitly rescuing from can be safely retried, so an "accidental infinite loop" seems very unlikely to sneak in.
+
+;##D48 An exception can't have the same logic for each method
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Surely rescuing some particular exception can't have the same logic for every single method in your object.
+
+Good point. I was working under the assumption a job would only have a single #perform method (like most of mine do) and no other methods, so very much like controller actions. In that case rescue_from makes sense, but less so in the situation you describe.
+
+;##D49 keeping simple jobs is preferable and would benefit from rescue_from
+;##ROLE ETC
+;##INV F
+;##FORM ELAB D48
+;##REL NEW
+;##SEN NEU
+
+I don't think I'm alone in preferring simple jobs with a #perform that doesn't do much more than calling a handful of methods on another class or a provided model, so I would really like to keep rescue_from in with easy rescuing from ActiveRecord::RecordNotFound, but of course this still leaves people with more complex jobs (like you) free to inherit and call super from execute.
+
+>>>seuros, Member
+
+ping @mperham
+
+>>>tenderlove, Owner
+
+My point is two fold, 1) if you're looking at the implementation of a method, why would you consider some block that is not part of that method to have any impact on it? and 2) if you're only implementing perform why bother with using some special syntax for rescuing exceptions?
+
+;##D50 There doesn't seem to be a reason to have rescue_from for jobs
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I can see rescue_from to be handy in controllers where you have a bunch of methods that do about the same thing (finding records), but I don't see the parallel between controllers and jobs.
+
+>>>DouweM, Contributor
+
+The whole issue started because I pointed out deserialization with GlobalID could raise ActiveRecord::RecordNotFound, which would lead to an infinitely requeued job on at least Sidekiq (rails/activejob#25). After a little bit of discussion, loaning rescue_from from AC was suggested by @dhh because it would do the trick and be familiar to users.
+
+;##D51 Would be nice to have a way to deal with RecordNotFound
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'm not married to #rescue_from and I agree that it introduces a couple of new issues/potentially confusing behaviour. In the end, all I would really like is a way to handle those RecordNotFound errors that is straightforward and easy enough to be recommended to and used by less experienced AJ users who use it with GlobalID models.
+
+If we're moving away from rescue_from, we're pretty much restarting that discussion. Do you have any input on the problem described there, any other ideas on ways to handle it?
+
+>>>tenderlove, Owner
+
+Maybe this sample code will drive home the point why I think rescue_from for handling argument deserialization is a bad idea:
+
+;##D52 Assugin that RecordNotFound could be originatied from deserializing would case infite loops
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D51
+;##SEN NEU
+
+I should mention that if you assume the RecordNotFound error originated from deserializing arguments rather than a mistake you made, then you will have another fun case of an infinite loop.
+
+If we want a way for dealing with deserialization errors, we should add a more specific way of doing that.  Maybe something like this:
+
+>>>dhh, Owner
+
+We are just testing the integration of that library. Hence why there are no tests for all the permutations of reacue_from, just a single test for it.
+
+On Aug 14, 2014, at 19:03, Aaron Patterson notifications@github.com wrote:
+
+In activejob/test/jobs/rescue_job.rb:
+
+@@ -0,0 +1,20 @@
++class RescueJob < ActiveJob::Base
+
+class OtherError < StandardError; end
+
+rescue_from(ArgumentError) do
+@dhh if this code is from AP, then what are we testing? If we know rescue_from works, why are we testing it?
+
+Besides that, it seems like a great way to accidentally create an infinite loop:
+
+require 'active_job'
+
+class RescueJob < ActiveJob::Base
+rescue_from(ArgumentError) do
+arguments[0] = "DIFFERENT!"
+retry_now
+end
+
+def perform(name)
+my_helper # oops! I forgot the arg
+end
+
+def my_helper(name)
+puts "Hello: #{name}"
+end
+end
+
+RescueJob.new.execute(SecureRandom.uuid)
+@DouweM I don't actually see a place where deserialization will raise an exception, but presumably you could implement execute and call super with a begin / rescue.
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>cristianbica, Contributor
+
+;##D53 Could we jsut raise a DeserializatioNError?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+How about we leave the rescue_from and on deserialization error we raise an ActionJob::DeserializationError in which we give the actual exception--
+Cristian Bica
+
+On Fri, Aug 15, 2014 at 7:06 PM, Aaron Patterson notifications@github.com
+wrote:
+
+@@ -0,0 +1,20 @@
++class RescueJob < ActiveJob::Base
+
+class OtherError < StandardError; end
+
+rescue_from(ArgumentError) do
+Maybe this sample code will drive home the point why I think rescue_from for handling argument deserialization is a bad idea:
+
+
+If we want a way for dealing with deserialization errors, we should add a more specific way of doing that.  Maybe something like this:
+
+self.arguments = Arguments.deserialize(serialized_args)
+
+
+run_callbacks :perform do
+perform arguments
+@@ -23,5 +27,9 @@ module ActiveJob
+def perform()
+raise NotImplementedError
+end
++
+
+def deserialization_error(exception)
+
+end
+end
+end
+
+
+>>>tenderlove, Owner
+
+;##D54 What's the need if there's only one method that can raise it?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D53
+;##SEN NEU
+@cristianbica that sounds great.  Now I wonder, if there's only one method that can raise this exception, what's the point of using rescue_from?  I don't mind if we leave it in so people can use it, but I'd like to add this patch:
+
+so that in our job we can deal with fixing the arguments independently from errors in perform:
+
+>>>dhh, Owner
+
+I'll follow up with full arguments later, but I remain happy with the inclusion of rescue_from. Nobody is forcing you to use it, just like in controllers. Anyway, I'll expand the argument later, but don't remove this for now.
+
+On Aug 15, 2014, at 9:01, Douwe Maan notifications@github.com wrote:
+
+In activejob/test/jobs/rescue_job.rb:
+
+@@ -0,0 +1,20 @@
++class RescueJob < ActiveJob::Base
+
+class OtherError < StandardError; end
+
+rescue_from(ArgumentError) do
+The whole issue started because I pointed out deserialization with GlobalID could raise ActiveRecord::RecordNotFound, which would lead to an infinitely requeued job on at least Sidekiq (rails/activejob#25). After a little bit of discussion, loaning rescue_from from AC was suggested by @dhh because it would do the trick and be familiar to users.
+
+;##D55 Would be nice to have a way to deal with RecordNotFound
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'm not married to #rescue_from and I agree that it introduces a couple of new issues. In the end, all I would really like is a way to handle those RecordNotFound errors that is straightforward and easy enough to be recommended to and used by less experienced AJ users who use it with GlobalID models.
+
+If we're moving away from rescue_from, we're pretty much restarting that discussion. Do you have any input on the problem described there, any other ideas on ways to handle it?
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>seuros, Member
+
+@tenderlove you can add  your commit to the actual PR.
+
+>>>tenderlove, Owner
+
+@dhh as long as we have an appropriate methods (like my patch above) then I don't particularly care if rescue_from is included.  I do look forward to rebutting your full arguments though. 
+
+>>>dhh, Owner
+
+;##D56 We should change GlobalID to raise a specific error
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+;##D57 It deosn't make sense to force people implement their own handling
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELABD 56
+;##SEN NEU
+
+I don't think that's a good change. We should change GlobalID to raise a specific error, so you can rescue that without rescuing generic ArgumentErrors, but it doesn't make sense to me to force people implement their own handling like what's being proposed here.
+
+;##D58 Resuce_from is usefull to rescue from services outside your control, not from #perofrm
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELABD 57
+;##SEN NEU
+
+You don't need rescue_from when you're rescuing app exceptions that stem from your own code that's being run in that #perform method. But it's a great pattern when you're rescuing errors from services outside of your control. The deserialization is one example, here's another we're using pre-AJ in Basecamp (so I've just rewritten as pseudo code here):
+
+We have some similar rescues around errors that can come from our CleverSafe file storage system that our jobs interface with. We don't want to rescue those explicitly in #perform.
+
+This is exactly the same motivation we have for rescue_from in AP. You rescue general classes of generic errors, like ActiveRecord::RecordNotFound, and give them generic errors like 404. You then combine that with specific rescues in your action methods, if those are specific to that action.
+
+>>>tenderlove, Owner
+
+force people implement their own handling like what's being proposed here.
+
+;##D59 WHat if we add a DeserializeException and extract the argument to a method
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D57
+;##SEN NEU
+
+I will quote you, "nobody is forcing you to use it".  I am proposing that 1) we add a new exception ActionJob::DeserializationError (as @cristianbica suggests), and 2) extract argument deserialization to a method. Nobody is forcing you to implement the extracted method, but you can if you want, and you can still use rescue_from.
+
+;##D60 It will be needed to migrate custom arg serialization
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D59
+;##SEN NEU
+
+As a selfish argument, we'll need this method to migrate custom arg serialization (we're using marshal not JSON).  We could end up in infinite loops with rescue_from if we don't have this hook method to distinguish between arg deserialization and job processing.
+
+>>>dhh, Owner
+
+I'm 👍 on #1, but not really in favor of #2. But if you feel so strongly about it, then alright, let's do that.
+
+>>>tenderlove, Owner
+
+@dhh ❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️😍
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+Sounds more like a lazy job than an active one. 
+
+>>>seuros, Member
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+;##D61 Is there no way to provide non-primitives argument to a job?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NUE
+
+Does this mean that there is no way to provide arguments to a job that aren't primitives? Shouldn't any marshalable object be allowed here?
+
+>>>seuros, Member
+
+;##D62 They get serialized
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D61
+;##SEN NEU
+
+Yes and No. Sidekiq and Resque serialize objects to json and send it to redis, Qu do that with redis and mongodb.
+
+>>>sgrif, Member
+
+;##D63 We should be leaving the option to the adapters
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D62
+;##SEN NEU
+
+Seems like something we should leave up to the queueing adapters, rather than disallowing entirely, similarly to enqueue_at.
+
+>>>seuros, Member
+
+I don't remember well why we did that .
+cc @DouweM @dhh @mperham @cristianbica @rafaelfranca
+
+>>>dhh, Owner
+
+;##D64 That would prevent fthe switch between adapters
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D63
+;##SEN NEU
+
+That would prevent you from switching between adapters. The whole point here is to provide a uniform interface, so I don't think that's a good idea.
+
+>>>sgrif, Member
+
+;##D65 Isn't already that to provide enqueue_at?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D64
+;##SEN NEU
+
+;##D66 It doesn't make sense to amstring basic functionalities
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB 65
+;##SEN NEU
+
+Don't we already do that by providing enqueue_at, which isn't supported universally? The same argument could be made in Active Record for disallowing anything specific to a single database. While it's awesome to provide a common interface, and abstract away what we can, it doesn't make sense to me that we would hamstring basic functionality that is implemented in a similar enough fashion by almost all supported backends.
+
+>>>dhh, Owner
+
+;##D66 It's not implemented by all supported backends
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR
+;##SEN NEU
+
+It's not implemented by all supported backends. Anyone using JSON as the storage format, like Resque, can't deal with arbitrary serialization. Much harder to entangle later than simply dealing with serialization up front if you are to remain queue agnostic -- which is the whole point of ActiveJob.
+
+>>>sgrif, Member
+
+;##D67 This use case should be independent from the back end being used
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D66
+;##SEN NEU
+
+From my point of view, I'd see the use case the same as Active Record, allowing code that provides common functionality to be structured the same way and put in the same place, regardless of the back end being used. Possibly also allowing the decision of which back end to use to be delayed. However, similarly to switching between database implementations later, it seems that switching between queueing implementations after the fact would be less common. If the user wants to be stuck with only queues that use YAML or Marshal for serialization, why shouldn't we let them? Why does this argument not apply to enqueue_at, which also isn't supported by all queueing backends?
+
+>>>dhh, Owner
+
+;##D68 This use case is different because it's more likely to cause problems
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D57
+;##SEN NEU
+
+I don't think it's the same situation at all. This is something much more likely to trip you up. Some adapters take some params, others don't. It's much clearer to say "delayed job scheduling" is supported here and not there. Way too easy to write code that didn't need to use a custom class and that works on the random queue you're on, then doesn't work on the next. And there's just not enough gain.
+
+>>>sgrif, Member
+
+And there's just not enough gain.
+
+I suppose the relative value depends on how much you're using non-primitives. Forcing users to deal with serializing/deserializing likely removes all ability to duck type arguments to jobs.
+
+>>>dhh, Owner
+
+I'd be happy to see some job code using lots of non-primitives to reconsider. This is an extraction, and from the usage I've seen so far, I haven't found any that couldn't just as well be primitives plus GID'ables.
+
+>>>sgrif, Member
+
+Example use case from my current project: A job which applies a set of transformations to a file, and moves it to the appropriate location. Arguments are the path of the current file (which is on S3), the expected location (on S3), the bucket name, and an array of transformations (would have been a single object if YAML dumping SimpleDelegator subclasses wasn't such a pain). Simplest case is just providing an encoder which gzips the file, but there are also uses which will include things such as converting a JSON based animation file format to a binary one, minifying ruby code, and losslessly compressing image files.
+
+;##D69 Alloweing the restriction would allow to pass in the object directly
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Allowing me to restrict myself to YAML/Marshal based queues would let me pass in the objects directly. This restriction forces a serializer/deserializer combo, which is tightly coupled to certain implementation details of these objects. The ones that take constructor arguments become especially tricky, and overall I'm forced to switch from object oriented to class oriented, since now all I have to work with are primitives and class objects, which means I need a consistent interface for the constructors of unrelated objects where previously I could just duck type.
+
+>>>dhh, Owner
+
+Please do post some of this code somewhere, if you can.
+
+>>>sgrif, Member
+
+I don't have a before/after comparison, since we're not using ActiveJob and are using a queueing library that supports YAML, but I can pull out some of the relevant bits as they are today.
+
+>>>sgrif, Member
+
+Here's the job itself, and the basic interface of the most important transformers that we use. https://gist.github.com/sgrif/5920ca3d46a76b9286a0
+
+>>>sgrif, Member
+
+Digging deeper, do any queues use something other than JSON besides Delayed Job and Sucker Punch?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+Seems like providing an object that isn't an instance of Class isn't too far fetched. Maybe change this to else?
+
+>>>seuros, Member
+
+;##D70 A possibility is to inherit all adapters from AbstractAdapter
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You are right. Maybe we should inherit all adapters from AbstractAdapter  .
+
+>>>sgrif, Member
+
+;##D71 Would that require every adapter to inherit it?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL ELAB D70
+;##SEN NEU
+
+Would that mean providing a new adapter would also have to inherit from AbstractAdapter? Is there a problem with just letting any object through that I'm missing?
+
+>>>seuros, Member
+
+The adapter should respond  enqueue and enqueue_at
+
+>>>DouweM, Contributor
+
+Not a big fan of abstract classes—duck typing and all that. I suggest simply explaining those methods and assuming adapter implementors are sane.
+
+>>>sgrif, Member
+
+👍 for duck typing.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+;##D72 We could provide an interfance to ask about support features?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Maybe we should provide an interface to ask about supported features, as well, to ease the burden on plugin maintainers?
+
+>>>DouweM, Contributor
+
+;##D73 What about having respont_to on the adapter with a raise if false?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL ELAB D72
+;##SEN NEU
+
+Agreed. Would AJ calling respond_to?(:enqueue_at) on the adapter and raising if false be sufficient? That way adapters wouldn't need to include non-supported methods at all.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+Or just we could just implement with sleep. 
+
+>>>seuros, Member
+
+That will drive users crazy.
+
+>>>DouweM, Contributor
+
+And was discussed in the dedicated repo and ultimately decided against :)
+
+>>>carlosantoniodasilva, Owner
+
+;##D74 Hardcoding the url is not necessary
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I don't think hardcoding the url here is necessary, just the message about the backend should do (it could also be a bit more explicit)
+
+>>>phstc, edited
+
+;##D75 Could eqneue_at delete to enqueue ignoring timeout?
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@seuros I was wondering if enqueue_at could just delegate to enqueue ignoring the timeout settings.
+
+My motivation is because in development, I would like to change only the adapter from shoryuken to inline, but because of NotImplementedError, I can't. I would need to create my own Inline or add ifs in the code.
+
+;##D76 An alternative is logging a warning message
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL EALB D75
+;##SEN NEU
+
+If delegating from enqueue_at to enqueue is too ✨ , we could also log a warning message saying it's ignoring the timeout settings.
+
+WDYT?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+;##D77 SHould user be allowed to use enqueue_at without reque-schedule?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Should we allow use without resque-scheduler for users who aren't using enqueue_at?
+
+>>>dhh, Owner
+
+;##D78 As long as it raises like in the non-implemented cases
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D77
+;##SEN NEU
+
+I'd be OK with a version that basically raised like it does in the not-implemented cases.
+
+>>>cristianbica, Contributor
+
+seuros/rails@c90103a
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+wrong indent
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+;##D79 Can we instead rely on public_send?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Can we rely on public_send instead?
+
+>>>seuros, Member
+
+Yes
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+It might be good to require the delegate.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+public_send? (or can't you just call new?)
+
+>>>seuros, Member
+
+private_class_method :new #:nodoc:
+
+>>>carlosantoniodasilva, Owner
+
+Well,  it's probably private for a good reason then, and we shouldn't mess up with it :)
+
+>>>cristianbica, Contributor
+
+;##D80 The method is private because am creates an internal instance
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+That method is private for 10 years (it's from the first public commit :) ). The method is private because AM creates an instance internally in method_missing. Now the AM instance is created from the MessageDelivery class.
+
+>>>sgrif, Member
+
+Why not just make it public?
+
+>>>seuros, Member
+
+We could!
+ping @dhh
+
+>>>dhh, Owner
+
+;##D81 We can't make it public because is used as singleton
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D80
+;##SEN NEU
+
+I think the reason we don't to expose new is that all other calls go through the singleton. You're supposed to call NotificationMailer.my_action(arg).deliver -- not NotificationMailer.new.my_action(arg).deliver. So I don't think we should mess with that pattern for now.
+
+>>>sgrif, Member
+
+Isn't it reasonable that if we have this need for our new additions, other plugin makers may need the same thing?
+
+>>>dhh, Owner
+
+I’ve never heard of that need in the 10 years so far. So I’d like to see a real case before going public with it.
+
+On Aug 16, 2014, at 10:23 AM, Sean Griffin notifications@github.com wrote:
+
+In actionmailer/lib/action_mailer/message_delivery.rb:
+
+@@ -0,0 +1,47 @@
++module ActionMailer
+
+class MessageDelivery < Delegator
+
+def initialize(mailer, mail_method, *args)
+
+end
+
+def getobj
+
+Isn't it reasonable that if we have this need for our new additions, other plugin makers may need the same thing?
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>sgrif, Member
+
+This case doesn't count?
+
+>>>dhh, Owner
+
+It counts for 1. I usually like to see at least 2, preferably more.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+ 
+Where is the serialize method coming from?
+
+>>>DouweM, Contributor
+
+Check line 8.
+
+>>>sgrif, Member
+
+...I appear to be blind.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+public_send
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+Options are always passed, there's no need to make this arg optional.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+Could just point to the list of adapters below, which could include the related symbols, so that we have a single update place.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sgrif, Member
+
+Unannounced feature of 4.2, we found Waldo!
+
+>>>carlosantoniodasilva, Owner
+
+✂️
+
+>>>seuros, Member
+
+@dhh  ?
+
+>>>dhh, Owner
+
+Maybe that was used in an earlier test. If nothing fails when you remove, feel free to cut.
+
+>>>dhh, Owner
+
+Actually, this is used. It's just a stub. We don't need to have this actually backed by anything to test what we need to test. So this is as it should be.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+Is this supported, or required?
+
+>>>DouweM, Contributor
+
+We want to promote this way of passing models along with a job as much as possible, so I'd say required to have it not take the extra step of adding a requirement to the Gemfile.
+
+>>>dhh, Owner
+
+Required. Definitely. Big part of the appeal of ActiveJob in general.
+
+>>>Thread end
+
+>>>sgrif, Member
+
+;##D82 Does this set the queueing backed to :inline by default?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+I might have missed it, but does this set the queueing backend to :inline by default in the test environment? Have we considered what testing will look like for apps that use enqueue_at?
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+;##D83 They neeed to be moved inside of calass
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D82
+;##SEN NEU
+
+These are not actually private, you must either move them inside a class << self for private to work, or use private_class_method :serialize_argument
+
+>>>carlosantoniodasilva, Owner
+
+;##D84 Why is this a class and not a module or an instance?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D83
+;##SEN NEU
+
+Actually, why is this a class if we just make use of class methods? Could either be a module, or actually use a class by instantiating it to do the heavy lifting.
+
+>>>DouweM, Contributor
+
+Agreed, it could/should be a module. I think previously it was used to instantiate models as well.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+It might be good to document those too.
+
+>>>cristianbica, Contributor
+
+added
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+;##D85 enqueued_at is a misleading name
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This attribute seems a bit misleading to me, enqueued_at gives me the understanding of the time it's being enqueued, eg Time.current or created_at, different from enqueue_at. Does that make sense?
+
+>>>DouweM, Contributor
+
+;##D86 WOuld enqueued_for be a better name?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL ELAB D85
+;##SEN NEU
+
+Agreed. How about enqueued_for? Reads like "enqueued for tomorrow 3am" rather than "enqueued at noon today" which sounds like the time it was enqueued.
+
+>>>seuros, Member
+
+;##D87 What if we aliias both names?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D86
+;##SEN NEU
+
+What about aliasing both enqueued_for and enqueued_at
+
+>>>cristianbica, Contributor
+
+Enqueue for later is supported by 3 adapters:
+
+delayed_job: Something.delay(run_at: 10.hours.from_now).a_method
+
+resque: Resque.enqueue_at_with_queue job.queue_name, timestamp...
+
+sidekiq: Sidekiq::Client.push at: timestamp, class:....
+
+Pretty obvious where the _at came from :)
+
+>>>DouweM, Contributor
+
+Sure, but for a timestamp attribute it's confusing vs created_at etc. I think aliasing is a good compromise.
+
+>>>carlosantoniodasilva, Owner
+
+Why not just rename it to the actual argument: enqueue_at
+
+>>>dhh, Owner
+
+;##D88 Enqueue_at makes sense
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D87
+;##SEN NEU
+
+I think enqueue_at makes perfect sense. There's no guarantee that the queue will run the job precisely at that second. It'll simply enqueue it for processing then, which depending on how busy it is, may well mean processing some time later. So 👎 on rename or alias.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+I believe this yields a ruby warning, so might be good to wrap with ()
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+I guess you don't need this require, but you do need the one for secure random
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+;##D89 AS::Concern doesn't need to add a writer
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+There's no need for AS::Concern to just add a writer, you can do it on the module itself:
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+Why two?
+
+>>>DouweM, Contributor
+
+We want to log before and after performing, check lines 60 and 64. Looks to me like this is the only way.
+
+>>>carlosantoniodasilva, Owner
+
+;##D90 There's no need to have a double log
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+As far as I'm aware of, log subscriber already has code to deal with this and you can use the duration to do the logging. I'd rather not have two of these per job being performed.
+
+@tenderlove might be able to tell us more about it.
+
+>>>DouweM, Contributor
+
+;##D91 LogSubscriber goes only when it finishes
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D90
+;##SEN NEU
+
+As far as I can see from the source, LogSubscriber does not call any method on itself when instrumentation starts, just when it finishes: source (start and finish are called by Notifications before and after the block is yielded). We want a separate log message when the job starts, which at this point requires a separate instrumentation.
+
+;##D92 We could change it to call at start too
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELABD 91
+;##SEN NEU
+
+I wouldn't mind changing LogSubscriber.start to call #{name}_start if that method exists, but that's not backward compatible if people are already using their own _start event.
+
+/cc @tenderlove
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+;##D93 This method could be called with a to_s argument to aovid stirngs
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You could call this method with a to_s argument to avoid more strings here.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+;##D94 Isn't there an interface to do this without metaprogram?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+This seems a little awkward, having to metaprogram like that to set the queue name. Doesn't it provide an interface for doing so?
+
+>>>cristianbica, Contributor
+
+Yep. When I did some integration testing I noticed that for Qu all the jobs were pushed to the default queue. When Qu pushes the job on the queue it calls (klass.instance_variable_get(:@queue) || 'default').to_s to determine the queue.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+It seems these requires could be ✂️
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+There is no need for this to be an instance variable.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+Just pass all of them into the same accessor call.
+
+>>>carlosantoniodasilva, Owner
+
+Hm now I noticed it was a copy from DJ 😢
+
+>>>Thread end
+
+>>>Thread start
+
+>>>carlosantoniodasilva, Owner
+
+You can use markdown to create a more readable table.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>tenderlove, Owner
+
+;##D95 This can be done by rubygem without using this
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Is this actually necessary?  You can get the currently loaded version of a gem from RubyGems:
+
+Also, what does anyone use this for?
+
+>>>chancancode, Owner
+
+;##D96 In this way it makes the comparison easy for authors
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D95
+;##SEN NEU
+
+This was added in #14101. IIRC the motivation was to make comparison easy for gem/plugin authors (if ActiveRecord.gem_version > ...)
+
+>>>tenderlove, Owner
+
+@chancancode ya, but that was before we knew that you could get the info from RubyGems.  I think we should encourage people to query RG for the loaded gem info and rm this code.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>chancancode, Owner
+
+Global Identification?
+
+>>>seuros, Member
+
+https://github.com/rails/activemodel-globalid
+
+>>>DouweM, Contributor
+
+>>>seuros, Member
+
+👍
+
+>>>Thread end
+
+>>>tenderlove, Owner
+
+;##D97 Where does the test harness set up stuff?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Where does the test harness set up redis queues and pg tables for testing the different queues?  I can't seem to find it.
+
+>>>cristianbica, Contributor
+
+@tenderlove  We have integration tests rails/activejob#102 but:
+I wanted to drop them seuros/actionmailer-deliver_later#6 (comment)
+@ddh said no  :) seuros/actionmailer-deliver_later#6 (comment)
+@rafaelfranca said to make separate PR with them https://github.com/seuros/rails/issues/1#issuecomment-51945362
+So I'll make the PR once we get this PR merged
+
+>>>DouweM, Contributor
+
+;##D98 What's the difference between active_ and action_?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Not related to the PR itself, but I was wondering: what makes some part of Rails "active_" or "action_"? "Active record" was an existing term of course, but what makes ActionMailer and ActiveJob, action and active, relatively?
+
+>>>dhh, Owner
+
+;##D99 Action fronted, active backend
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D98
+;##SEN NEU
+
+I've used Action for anything that is frontend aimed (controller/views), Active for backend (models etc).
+
+On Aug 16, 2014, at 12:20, Douwe Maan notifications@github.com wrote:
+
+;##D100 What's the difference between active_ and action_?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Not related to the PR itself, but I was wondering: what makes some part of Rails "active_" or "action_"? "Active record" was an existing term of course, but what makes ActionMailer and ActiveJob, action and active, relatively?
+
+—
+Reply to this email directly or view it on GitHub.
+
+>>>DouweM, Contributor
+
+All right, curiosity satisfied :)
+
+>>>jeremy, Owner
+
+🤘
+
+>>>cristianbica, Contributor
+
+@tenderlove here are the integration tests
+#16541
+
+Cristian Bica
+
+On Fri, Aug 15, 2014 at 5:07 AM, Aaron Patterson notifications@github.com
+wrote:
+
+;##D101 Where does the test harness set up stuff?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Where does the test harness set up redis queues and pg tables for testing
+the different queues? I can't seem to find it.
+
+—
+Reply to this email directly or view it on GitHub
+#16485 (comment).
+
+>>>zhouguangming, Contributor
+
+👍
+
+>>>jGRUBBS, Other
+
+;##D102 What is the rational behind removing the method in sucker_punch_adapter?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@mperham I am looking at the pull request here rails/activejob#35
+I still don't see any rationale behind removing the later method in the sucker_punch_adapter unless you have any reason as to why it was removed, could it be added back?
+
+>>>cristianbica, Contributor
+
+;##D103 Sucker punch doesn't have persistent store
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D102
+;##SEN NEU
+
+@jGRUBBS it was proposed again in rails/rails #16643 but because Sucker Punch does not have a persistent store we decided not to accept it.
+
+>>>jGRUBBS, Other
+
+@cristianbica thanks for the explanation, now I see.
+

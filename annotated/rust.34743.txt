@@ -1,0 +1,1319 @@
+>>>badboy, Contributor
+
+As discussed in https://internals.rust-lang.org/t/need-help-with-emscripten-port/3154/46 I'm trying to update the used LLVM checkout in Rust.
+
+I basically took @shepmaster's code and applied it on top (though I did the commits manually, the original commits have better descriptions.
+
+With these changes I was able to build rustc. make check throws one last error on run-pass/issue-28950.rs. Output: https://gist.github.com/badboy/bcdd3bbde260860b6159aa49070a9052
+
+I took the metadata changes as is and they seem to work, though it now uses the module in another step. I'm not sure if this is the best and correct way.
+
+Things to do:
+
+ Make run-pass/issue-28950.rs pass unrelated
+
+ Find out how the PositionIndependentExecutable setting is now used
+
+ Is the llvm::legacy still the right way to do these things?
+
+cc @brson @alexcrichton
+
+>>>rust-highfive, Collaborator
+
+Thanks for the pull request, and welcome! The Rust team is excited to review your changes, and you should hear from @pnkfelix (or someone else) soon.
+
+If any changes to this PR are deemed necessary, please add them as extra commits. This ensures that the reviewer can see what has changed since they last reviewed the code. Due to the way GitHub handles out-of-date commits, this should also make it reasonably obvious what issues have or haven't been addressed. Large or tricky changes may require several passes of review and changes.
+
+Please see the contribution instructions for more information.
+
+>>>badboy, Contributor
+
+Ah, forgot to mention that I am using a LLVM checkout of http://llvm.org/git/llvm.git
+
+>>>Thread start
+
+>>>frewsxcv, Member
+
+llvm::legacy::FunctionPassManager
+
+;##D1 What did this legacy got replaced with?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Tangential comment to this pull request: Does anyone know what this got replaced with since it's presumably legacy now?
+
+>>>eefriedman, Contributor
+
+LLVM pass manager infrastructure is currently getting rewritten to be more flexible.  See https://github.com/llvm-mirror/llvm/blob/d1aa4ea020d932ffc6a3c3e4d1bbab659391c725/tools/opt/NewPMDriver.cpp#L50 for a usage example for the new API.  That said, the rewrite isn't complete yet.
+
+>>>alexcrichton, Owner
+
+;##D2 Clang is also using it, no need to replace it for now
+;##ROLE PM 
+;##INV T
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+Looks like clang is also still using this, so we probably don't need to update just yet until they do at least.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>shepmaster, Member
+
+I'm pretty sure this is a hack that only makes sense in my fork (there's no PIE for microcontrollers :-)).
+
+Even if we wanted to remove this (doubtful), it should be removed and not commented-out. I believe that LLVM applies this flag at a more granular level now, so looking downward for another flag to apply it to seems reasonable.
+
+>>>badboy, Contributor
+
+Right, this is one of the things mentioned above. I left it in, so I remember to fix that.
+
+>>>alexcrichton, Owner
+
+This was deleted here which appears to be replaced by this which is a new setPIELevel function on the LLVM module itself.
+
+The LLVM module isn't available at this time so we'll just have to arrange for it to be set later. Perhaps something like this though:
+
+Leave this block, but gated by #if LLVM_VERSION_MINOR <= 8 for compatibility with older versions.
+
+Add LLVMRustSetModulePIELevel as a function which is a noop on pre-LLVM-3.9 and afterwards calls the setPIELevel function on the LLVM module.
+
+>>>badboy, Contributor
+
+;##D3 Do we hace a LLVMRustSetModulePIELevel to call the setPIELevel?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+;##D4 At what point should it be called?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D3
+;##SEN NEU
+
+Did you mean we have a LLVMRustSetModulePIELevel with the #ifdef for calling the setPIELevel method?
+If so, at what point do we call it?
+
+>>>shepmaster, Member
+
+;##D4 At what point should it be called?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL ELAB D3
+;##SEN NEU
+
+If so, at what point do we call it?
+
+;##D5 It has to be called every time a LLVM module is created
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D4
+;##SEN NEU
+
+I'd believe you want to call it every time an LLVM module is created.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>shepmaster, Member
+
+Shouldn't commit commented-out code. This appears to be moved to the constructor, so I believe it's safe and correct to just remove this.
+
+>>>badboy, Contributor
+
+Right. This will be removed.
+
+>>>shepmaster, Member
+
+;##D6 This might need to be placed in a #if guard
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Although thinking of what @alexcrichton was saying, it might have to just be placed in an #if guard to maintain compatibility with earlier LLVM...
+
+>>>alexcrichton, Owner
+
+;##D7 Is the fix bcompatible?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL REFR D6
+;##SEN NEU
+
+Yeah we may want this for compatibility with older llvm versions, but I'm not sure if the fix here is backwards compatible (it may be?)
+
+>>>badboy, Contributor
+
+It will definitely need to change, as we changed the function.
+However, the new version might even work with old LLVM, doesn't it?
+
+>>>alexcrichton, Owner
+
+I think maybe yeah? I'm not actually sure what changed here, it looks like just a bit of shuffling around to me...
+
+>>>shepmaster, Member
+
+;##D8 It is possible that it will work wiht older LLVMs
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D7
+;##SEN NEU
+
+It's indeed possible that the updated code (that creates the metadata early) will work with older LLVMs. Specifically, LLVM inverted the way the debug information graph is built. All the builders inside LLVM magically handle this, as long as there is something to add the debug information to. Creating the debug information as early as possible enables this.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>shepmaster, Member
+
+How did this work before? symbols wasn't even being used...
+
+>>>badboy, Contributor
+
+It was used in the old version, see 0763041#diff-2030f049f8df2454e3720ea9403bc14aL363.
+
+I should have squashed that.
+
+>>>Thread end
+
+>>>shepmaster, Member
+
+I'm no core contributor, but I don't see the value in commit X introducing less-than-great variable names and then commit X+1 improving them. I'd just squash those two together.
+
+>>>badboy, Contributor
+
+@shepmaster yes, I should have squashed them beforehand. I can still do this.
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+Right now our line limit is 100 characters so I think this will trigger make tidy, could you also add imports instead of using absolute paths here?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+Can you wrap this in a #if to only execute this new part on LLVM version >= 9 and keep the old code around for 8 and below? That should help us keep compiling against older versions of LLVM.
+
+Come to think of that, can you also ensure that the llvm::legacy:: above compiles on LLVM 3.7 and 3.8?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+This is currently the rust-llvm-2016-03-13 branch in the rust-lang/llvm repo, we'll want to make a new branch which points to this LLVM version and also has some of our custom patches, which includes.
+
+I've done this at the rust-lang-2016-07-09 branch as well as including some of our own patches (mostly just related to compiling LLVM itself). Can you update this commit to that patch?
+
+>>>Thread end
+
+>>>alexcrichton, Owner
+
+A failure on issue-28950 looks like it may be specific to your system or something like that, I doubt that the LLVM changes would cause it to fail. Are you sure that it succeeds before this PR on your local computer?
+
+>>>badboy, Contributor
+
+@alexcrichton Indeed, with a fresh checkout of rust-lang/rust I see the same error on issue-28950
+
+>>>alexbool, Contributor
+
+This is supposed to fix #34119 ?
+
+>>>badboy, Contributor
+
+@alexbool If it is fixed by something in LLVM upstream, then yes
+
+>>>brson, Contributor
+
+cc @kripken Here's Rust's LLVM upgrade.
+
+>>>kripken, Other
+
+@brson: cool, emscripten's merges of that same LLVM commit are in https://github.com/kripken/emscripten-fastcomp/tree/next-merge and https://github.com/kripken/emscripten-fastcomp-clang/tree/next-merge .
+
+The tracking issue is kripken/emscripten#4430. Looks like only some SIMD issues block it, which probably wouldn't be a problem for rust, so it could be usable for testing already.
+
+>>>shepmaster, Member
+
+I'd strongly encourage having links to the original LLVM issues / commits that are forcing these changes. These links should be in the commit message that modifies the relevant aspect of the code. That should make it much easier for people in the future to track down the why.
+
+>>>shepmaster, Member
+
+That should make it much easier for people in the future to track down the why.
+
+I say this having been one of those people to track down such information in the past.
+
+>>>alexcrichton, Owner
+
+@shepmaster to clarify, you mean the changes to LLVM bindings and why they're changing? (e.g. this)
+
+>>>shepmaster, Member
+
+you mean the changes to LLVM bindings and why they're changing
+
+Yeah; sorry to be unclear. Having the commit message be something like
+
+[LLVM 3.9] Configure PIE at the module level instead of compilation unit level
+
+This was deleted here[linky] which appears to be replaced by this[linky] which is a new setPIELevel function on the LLVM module itself.
+
+would make that commit 💯 in my book. Otherwise the commit is like "moving some functions around!"
+
+Again, I stress that I hold no power to enforce these suggestions; I just would have found commits like this to be useful when I was digging into the existing code to make these kind of changes. 🌴
+
+>>>alexcrichton, Owner
+
+Sounds like a good plan to me!
+
+>>>badboy, Contributor
+
+I will rebase the commits and change accordingly (force-push incoming!)
+
+@shepmaster Thanks for mentioning this, it's indeed a good idea, especially in the long run
+
+>>>solson, Member
+
+@alexcrichton @eddyb Can this PR also be placed under the "Launch MIR into Orbit" milestone, since it's blocking #34119?
+
+>>>alexcrichton, Owner
+
+@solson sure!
+
+>>>badboy, Contributor
+
+I just force-pushed with the new commits
+
+Reorganized all commits into logical blocks, including proper descriptions and links
+
+I had to upgrade compiler-rt as well to get it to compile, this is not yet reflected here
+
+I had to re-enable the std::thread thing in LLVM to get it to compile at least once. We probably need to find a proper workaround first.
+
+When choosing anything other than Default in ffc5a8608f1418f6a52f754232ba5edb90427370 I get the following error on compile:
+
+It seems something is not compiled correctly with -fPIC, but I'm not sure what to do here.
+
+>>>brson, Contributor
+
+Thanks @badboy. This is a great looking branch.
+
+>>>badboy, Contributor
+
+Btw, I tested with commit 14f04db1b53e21922728767b440a44741c9e292c from upstream compiler-rt.
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+This is actually currently conditional when the argument is passed to LLVMRustCreateTargetMachine:
+
+;##D9 Can that logic be extracted?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Perhaps that logic could be extracted to a method and that could be passed down here as well?
+
+>>>badboy, edited
+
+;##D10 It seems to be working in any_library and reloc_model
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D9
+;##SEN NEU
+
+Adding the exact same code to calculate any_library and reloc_model and then gating that call seems to work now, even with PIELevel::Level::Large (which, to my understanding, should be equivalent to the old option).
+
+>>>badboy, Contributor
+
+I will refactor the code into a method, so it can be called where necessary
+
+>>>alexcrichton, Owner
+
+Ok, awesome! So long as we're doing the same as before (whatever that PIELevel is), sounds good to me
+
+>>>shepmaster, Member
+
+whatever that PIELevel is
+
+All I know is that my PIELevel is always too low. 🍰
+
+>>>Thread end
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+one more absolute import here
+
+>>>badboy, Contributor
+
+Oh right, will fix it.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+I swear this changes literally every single LLVM release
+
+>>>badboy, Contributor
+
+I'm sure they find the best API eventually
+
+>>>Thread end
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+;##D11 Is this needed for LLVM 3.8?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+I think this needs to stick around for LLVM 3.8, right?
+
+>>>badboy, Contributor
+
+Hm, I'll check that again, testing it with 3.8 as well
+
+>>>alexcrichton, Owner
+
+FWIW in the past I've used the precompiled 3.7/3.8 distributions that LLVM ships and I just have a few build directories when I test out these changes, I just double check the C++ compiles on each and shouldn't take too long.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>alexcrichton, Owner
+
+This'll probably need a #ifdef for 3.7-8 compat
+
+>>>badboy, Contributor
+
+Oops, right.
+
+>>>Thread end
+
+>>>alexcrichton, Owner
+
+When choosing anything other than Default in ffc5a86 I get the following error on compile:
+
+That seems fine to me, we probably want Default for now anyway.
+
+I had to upgrade compiler-rt as well to get it to compile, this is not yet reflected here
+
+Do you have a branch which contains our patches as well? If so, I'll push it up to rust-lang! We unfortunately have a lot of patches here :(
+
+I had to re-enable the std::thread thing in LLVM to get it to compile at least once.
+
+Drat, could you send a PR to the LLVM branch in rust-lang/llvm though?
+
+>>>badboy, Contributor
+
+Do you have a branch which contains our patches as well? If so, I'll push it up to rust-lang! We unfortunately have a lot of patches here :(
+
+I will try to combine those.
+
+Drat, could you send a PR to the LLVM branch in rust-lang/llvm though?
+
+I can, but this will break mingw-w64 then again.
+
+>>>alexcrichton, Owner
+
+;##D14 Were the patches just to enable std::thread?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Ah yeah and if you have difficulty merging the compiler-rt patches, I can also help out rebasing those. Also yeah we need to get this working on mingw-w64, so were the patches to enable usage of std::thread? If so we just need to figure out how to get it working there.
+
+Not sure how to deal with upstream adding more of what we need to remove...
+
+>>>badboy, Contributor
+
+New commits tackle the latest comments. I tried with LLVM 3.8 and stage1 still compiles. For some reason the LLVM 3.7 fails due to changed arguments of a function called in RustWrapper.cpp.
+
+Next on: compiler-rt merging
+
+>>>alexcrichton, Owner
+
+Well this is gonna get interested, wanted to test some things out locally and got:
+
+I'm on Ubuntu 14.04 (which a bunch of our builders are as well), so we'll have to resolve this one way or another. We'll also need to update the README I believe to reflect that 3.4.3 is the minimum version, not 2.8.8 any more
+
+>>>badboy, Contributor
+
+Oh right, that cmake thing. D'oh!
+
+>>>alexcrichton, Owner
+
+;##D12 Do we need to require a super-new clang?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Oh dear, do we also need to require a super-new clang now? I'm getting:
+
+My clang version is Ubuntu clang version 3.4-1ubuntu3
+
+>>>alexcrichton, Owner
+
+Oh wait no nevermind that's just because -Wnon-virtual-dtor is in llvm-config --cxxflags from those pre built binaries, disregard!
+
+>>>alexcrichton, Owner
+
+Ok, confirmed 3.8 at least compiles, and 3.7.1 compiles for me  as well. Note that 3.7.0 doesn't compile for known reasons, so maybe you're testing against that locally? If travis passes though we should be fine.
+
+>>>badboy, Contributor
+
+D'oh! Ok, it is 3.7.0 breaking, thanks Ubuntu…
+
+>>>alexcrichton, Owner
+
+Ok, CMake versions are:
+
+And the Windows bots are running cmake 3.2.1
+
+;##D13 Most of the bots will need an upgrade
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D12
+;##SEN NEU
+
+Hurray! Almost everything needs an upgrade! The linux bots should all be easy enough as they're just tweaking some docker images. Most of them are on ubuntu 14.04 for no particular reason, and Android which is on 16.04 shows that it should be far enough forward. The Windows bots will be... interesting, but I'll figure it out.
+
+As soon as this is ready to go we can r+ and confirm it actually needs an upgrade, but I'll start upgrading them anyway
+
+>>>badboy, Contributor
+
+Btw, this is the error I get with the current compiler-rt:
+
+It's missing some files, upstream checkouts has these files.
+I'm not sure why it works in master right now.
+Maybe it is enough if we place the right files there instead of doing a full compiler-rt upgrade?
+
+>>>alexcrichton, Owner
+
+Hm that means that build system changes probably happened, in theory a compiler-rt upgrade should be pretty easy, so I think it'd be worth trying that out first
+
+>>>badboy, Contributor
+
+If you say so, I will try that first in the morning.
+
+>>>badboy, Contributor
+
+I have a branch of compiler-rt here where I merged master from http://llvm.org/git/compiler-rt and fixed the conflicts. Right now it compiles on my test server, but I might have broken other stuff.
+
+>>>alexcrichton, Owner
+
+;##D15 We could swtitch to the official MIPS compiler
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+;##D16 But it doesn't support -msoft-float
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D15
+;##SEN NEU
+
+Ok cool, thanks! I'll try to go through that soon. Unfortunately it was a bit rocky updating the CMake version. So in updating the linux-cross image for Ubuntu 16.04 it means we couldn't use our old "vendored" MIPS compilers, we could now switch to the "official" MIPS compilers. Unfortunately they don't support compiling with -msoft-float which we pass. It looks like not passing them, however, is gonna make it past all the bots (test are still running).
+
+;##D17 How crucial is -msoft-float?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL GEN D16
+;##SEN NEU
+
+cc @japaric, do you have an idea of how crucial it is to pass -msoft-float for the MIPS target? I can't imagine we have all that many users of the mips-unknown-linux-gnu target right now as we haven't even had to worry about glibc compatibility just yet, but you never know!
+
+Note that the mipsel target doesn't pass -msoft-float, so I'm tempted to just not worry about it and stop passing that flag.
+
+@badboy I'll get back to you about the compiler-rt upgrade.
+
+>>>shepmaster, Member
+
+>>>Thread start
+
+>>>shepmaster, Member
+
+;##D18 Should this reference old version?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Perhaps these should reference the old version, like the previous set? LLVM_VERSION_MINOR <= 8 and flip the clauses?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>shepmaster, Member
+
+Ditto the flip.
+
+>>>Thread end
+
+>>>alexcrichton, Owner
+
+;##D41 We should update the llvm submodule to this
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@badboy ok it looks like the LLVM commit I gave you didn't actually build, the std::thread patch was indeed bad. I tweaked it again to hopefully be more future proof this time, and I think fewer hacks are needed now that we've upgraded our OSX compilers. Can you update the llvm submodule to rust-lang/llvm@6e665b7?
+
+>>>alexcrichton, Owner
+
+Ok, and I have an initial stack of patches for compiler-rt.
+
+I experimented dropping:
+
+Old MIPS patches, our compilers are much newer and hopefully won't need them
+
+Old ARM patches, merged upstream
+
+Old Android patches, hopefully our compiler is new enough to not need them
+
+Old SJ/LJ patches, current changes may have subsumed this? Not sure (cc @vhbit)
+
+Other than that couldn't drop too much unfortunately
+
+Still testing locally, but if you want to update this PR we can start sending it to bors.
+
+>>>alexcrichton, Owner
+
+Er actually, to send to the bots we have to pull in all the new images, and to do that we have to land #34841 first, but you get my point :)
+
+>>>alexcrichton, Owner
+
+Fixed some minor issues with compiler-rt, should pass the linux-cross bot now and hopefully Android as well. That's where most changes were targeted, so it should be good to go now I think. New commit to update to is rust-lang/compiler-rt@3c51a62
+
+>>>japaric, Member
+
+@alexcrichton
+
+;##D18 How crucial is -msoft-float?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL GEN D16
+;##SEN NEU
+
+cc @japaric, do you have an idea of how crucial it is to pass -msoft-float for the MIPS target?
+
+I looked into this mips-gcc float ABI thing. Here are my notes:
+
+The current rust-buildbot MIPS toolchain (15.10 ppa package) uses the soft float ABI
+
+;##D19 WIth thhat toolchain, it's already the default ABI
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D18
+;##SEN NEU
+
+with that toolchain, we don't need to pass -msoft-float because it's already the default ABI
+
+However:
+
+;##D20 the new buildobt uses a different ABI
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D19
+;##SEN NEU
+
+the new rust-buildbot toolchain (16.04 official package) uses the hard float ABI(!)
+
+;##D21 The two ABIs are not compatible
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D20
+;##SEN NEU
+I think that's why @alexcrichton is getting an error building C dependencies with -msoft-float -- these two float ABIs are incompatible and can't be linked together
+
+more clearly: using the -msoft-float flag you are building new C binaries (*.o) with the soft float ABI and trying to link them with the system libraries that have a hard float ABI
+
+Next:
+
+On the Rust ABI side, the mips(el)-gnu backend is generating binaries with the soft float ABI
+
+Therefore:
+
+;##D22 We should stick to the old ABI with crosstool-ng
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D21
+;##SEN NEU
+
+We should continue to use a soft float ABI toolchain to avoid mixing two different ABIs i.e. we shouldn't use the 16.04 official package, which is hard float ABI, but instead use a soft-float ABI one e.g. built with crosstool-ng
+
+
+Now, I'm actually surprised that #34841 passes on on the upgraded docker images, which have the 16.04 mips toolchain, ... I think this is because mixing these two float ABIs only generates a linker warning and not a hard error:
+
+;##D23 We should avoid mixing ABIs
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL GEN D22
+;##SEN NEU
+
+Perhaps std appears to cross compile OK (albeit with linker warnings, which rustc doesn't bubble up (?)) but using that std to cross compile rust programs generates bad binaries (because of the mixed ABIs)? -- we don't really know because we don't have tests that execute cross compiled binaries. Anyway, I would advise against mixing two different float ABIs.
+
+>>>alexcrichton, Owner
+
+;##D24 Is there any reason to use different floats?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Looks like our mips targets were turned into soft float way back when, so I'm not sure they necessarily need to be soft float. @japaric do you know if there's a reason to do one or the other? It seems odd to me that the mipsel target would be hard float when the mips target isn't...
+
+;##D25 It would be better move to hard float
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+It's true though that we definitely shouldn't mix, but I think I'd personally prefer to just move everything over to hard float to match upstream toolchains if possible.
+
+>>>alexcrichton, Owner
+
+Oh dear, so... this will probably break external builds. Look like compiler-rt can't be built against older LLVM sources!
+
+@brson thoughts on doing #34400 now?
+
+>>>alexcrichton, Owner
+
+Ok, thanks again for all the patience @badboy! I think we have a plan of action to solve the remaining problems:
+
+To update cmake (to build LLVM 3.9) we will update the bots to Ubuntu 16.04, which pulls in a new MIPS toolchain (all other toolchains remain the same), which as @japaric points out has some differences in float support. I'll send a PR to change us over to hard-float for the MIPS targets (more consistent with debian), and it shouldn't affect this PR I believe.
+
+To fix compiling compiler-rt against older LLVMs (or any other LLVM) we're going to pursue #34873. This will cut our ties with compiler-rt's build system, so all these questions go away!
+
+So the remaining steps here are:
+
+I will send a PR to use hard-float on MIPS, that can land whenever
+
+We'll land #34873
+
+I'll tweak the compiler-rt submodule to jettison all our build system patches and only keep the source patches.
+
+You'll rebase this PR, including updates to the compiler-rt submodule
+
+We'll wait for a green light on Travis
+
+I'll restart buildbot, updating all the images
+
+We'll send to @bors
+
+Sound ok to you? Any last things you want to throw in on this branch?
+
+>>>badboy, Contributor
+
+👍 That sounds like a good plan (don't worry about my patience, I'm happy to get so much support in bringing this forward). I'll take a look at #34873 to understand what it does.
+
+>>>brson, Contributor
+
+@brson thoughts on doing #34400 now?
+
+Yes.
+
+>>>alexcrichton, Owner
+
+Changing MIPS to hard float is #34910
+
+>>>alexcrichton, Owner
+
+Ok #34873 is almost ready to land (fingers crossed for this round). Unfortunately this branch doesn't build for me but with brson@7f5f54d it seems to work. I had to update the llvm-mc syntax b/c it changed in 3.9 and there was just one modification to a C++ file we had to keep from before. Other than that things are looking good so far.
+
+If everything goes super well I'll just make a new PR with all these commits, that one, and the updated compiler-rt. Then I'll r+ that and see it merged when I wake up. I can dream can't I?
+
+>>>alexcrichton, Owner
+
+Alas perhaps not tonight, the g++ on the MinGW buildbots refuses to build LLVM no matter how I'm coaxing it right now, so gonna just have to sort that out tomorrow.
+
+>>>alexcrichton, Owner
+
+@badboy can you cherry pick 31daccb and f7c8e80 in here? No need to preserve commit messages or authorship or anything, they'll just need to be in this PR. The LLVM submodule will likely change again as I figure out how to compile it on MinGW again.
+
+>>>badboy, Contributor
+
+Cherry-picks incoming 🍒
+
+>>>badboy, Contributor
+
+There we go, I picked them apart a bit, but the changes are the same.
+
+>>>alexcrichton, Owner
+
+Ok, I think I got LLVM working through some serious surgery. Looks like I messed up a bit with the grep condition in configure.
+
+Also looks like tests are failing on the master branch because LLVM changed one of their custom target specifications, which we assert is the same as our own. If we change it, however, then we break with other LLVMs because they have a different data-layout as well. I'm just gonna disable that check for custom LLVMs for now and open an issue. Still working through failing tests though.
+
+>>>brson, Contributor
+
+Wow that is a horrible patch :(
+
+>>>badboy, Contributor
+
+@alexcrichton Should I already pull in the updates to the LLVM branch and the WIP changes?
+
+>>>badboy, Contributor
+
+Ok, so I'm unable to find the actual commits in any cloned version of these repositories…
+
+>>>alexcrichton, Owner
+
+@badboy not quite yet, I'm still working on testing. Unfortunately there are tons of failures on the bots:
+
+auto-linux-32-nopt-t
+
+auto-linux-64-cross-freebsd
+
+auto-linux-64-debug-opt
+
+auto-linux-cross-opt
+
+auto-mac-32-opt
+
+auto-win-msvc-64-opt
+
+And... they're basically all failing for different reasons.
+
+I had to apply this patch to get to that state, which:
+
+Should pass tests on linux64 (locally for me)
+
+The data-layout for aarch64 was changed, the data-layout assertion was relaxed for custom LLVMs
+A test was removed which I don't think ever actually needed to work.
+
+Uses an LLVM that actually compiles on MinGW
+
+Fixes a condition in the configure script.
+
+>>>alexcrichton, Owner
+
+I'm currently playing whack-a-mole with the bots in dev, trying to get a full suite of the failures so we can work through them.
+
+>>>alexcrichton, Owner
+
+Ok, I've got a full build now, failures are:
+
+auto-linux-32-nopt-t
+
+auto-linux-32-opt
+
+auto-linux-64-cross-freebsd
+
+auto-linux-64-debug-opt
+
+auto-linux-64-x-android-t
+
+auto-linux-cross-opt
+
+auto-mac-32-opt
+
+auto-win-gnu-32-opt
+
+auto-win-gnu-32-opt-rustbuild
+
+auto-win-msvc-64-cargotest
+
+auto-win-msvc-64-opt
+
+auto-win-msvc-64-opt-mir
+
+auto-win-msvc-64-opt-rustbuild
+
+>>>alexcrichton, Owner
+
+I unfortunately won't get a chance to look into these test failures yet, so any help investigating them would be much appreciated!
+
+>>>Thread start
+
+>>>eddyb, Member
+
+;##D26 The err Error values should be checked
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The err Error value needs to be checked, otherwise this happens with debug LLVM:
+
+>>>badboy, Contributor
+
+will take care of that
+
+>>>Thread end
+
+>>>Thread start
+
+>>>eddyb, edited
+
+;##D27 We might need to set PICLevel anywya
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You might need to set the PICLevel too, even if the relocation model is PIC.
+One potentially related failure is:
+
+EDIT: Not that it would help, given how it's only used in PowerPC.
+
+>>>Thread end
+
+>>>eddyb, Member
+
+All the relocation nonsense was because, well, this mismatch:
+
+
+So the Rust side had LLVMRelocMode, but LLVMRustCreateTargetMachine was taking Reloc::Model which meant that RelocMode::RelocPIC became Reloc::DynamicNoPIC.
+
+;##D28 LLVMRust* must only take C types
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The LLVMRust* functions MUST ONLY TAKE C TYPES.
+In this case, LLVMRelocMode, and do the conversion LLVMCreateTargetMachine does.
+
+>>>eddyb, Member
+
+Aarch64 Android also needs a data-layout update:
+
+>>>badboy, Contributor
+
+Thanks @eddyb, I'll take a look later today.
+
+>>>badboy, Contributor
+
+Again, thanks @eddyb. I tracked it down to this commit: 7354055#diff-5bb596c9f589759bef3b0b31f5505d2eR2107
+It seems this was a type mismatch for quite some time.
+I will fix it in the above code.
+
+>>>DemiMarie, Contributor
+
+;##D29 Is it possible to check it with an LLVM clone over https?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Would it be possible to check with an LLVM clone over HTTPS? Just to make sure that nobody has MITM'd the insecure HTTP clone.
+
+>>>badboy, Contributor
+
+@DemiMarie not sure what you mean. The submodule in this repository is at https://github.com/rust-lang/llvm, which is fetched over https.
+
+>>>badboy, Contributor
+
+I changed the type on LLVMRustCreateTargetMachine and added the conversion.
+I also added explicit checks for the error, which has to be done in each iteration (did I mention that this API seems super weird o_O).
+cc @eddyb
+
+I'm no C++ expert and I don't understand this iterator at all, so I might be doing stuff wrong
+
+>>>badboy, Contributor
+
+Ah damn, the optional is only necessary on newer LLVM -_-
+
+>>>badboy, Contributor
+
+;##D38 What should the default type be in LLVM <=3.9?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+I added a conditional to use the raw type. Though right now it does not check RelocDefault. What should be the default in LLVM <= 3.8?
+
+>>>eddyb, Member
+
+;##D39 LLVMCodeModel and LLVMCodeGenOptLevel also need to change to match
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D38
+;##SEN NEU
+
+@badboy The old implementation uses Reloc::Default - btw, you can see that LLVMCodeModel and LLVMCodeGenOptLevel also need to be converted, if they match now it may be pure coincidence.
+
+>>>alexcrichton, Owner
+
+Ok, I've pushed this for testing.
+
+;##D40 Can we update with those fixes?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@badboy could you also update with the fixes in brson/rust@7af5c98?
+
+>>>alexcrichton, Owner
+
+Ah it also looks like LLVM 3.9 has been branched, so if this passes all tests I may do one final rebase to get us onto the 3.9 release branch so we can just cherry-pick back their fixes easily if necessary.
+
+>>>badboy, Contributor
+
+Will add the fixes.
+On IRC someone mentioned me about some of the C++ changes. I'll check that tomorrow as well.
+
+>>>alexcrichton, Owner
+
+Ah and FWIW I've been playing around with some more commits, and what I've done so far is:
+
+Rebase this branch on master
+
+Then apply the commits at https://github.com/brson/rust/commits/f8728ac0e2b4c36e8ce9e0c9a5169b32ad5cb40e
+
+I've updated LLVM to the 3.9 release in that branch as well, and I think it's got most tests fixed now. The remaining thing to deal with is MSVC and llvm-config.
+
+>>>alexcrichton, Owner
+
+Ok I fixed up the llvm-config parsing for real this time (at https://github.com/rust-lang/rust/commits/c0e95ccd7c2bc5cd8e91aee25d65ae2699abb735).
+
+Unfortunately all of the MSVC builders are still failing. They're all failing to compile getopts in stage1:
+
+logs
+
+>>>eddyb, Member
+
+;##D42 It could be caused by a LLVM assertion not checked
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@alexcrichton My guess is a LLVM assertion that's not checked and leads to a segfault. It would be useful, at least here, to enable LLVM assertions.
+
+>>>alexcrichton, Owner
+
+Ok I sent rust-lang/rust@c0e95cc to bors and everything is green except MSVC, which is segfaulting.
+
+>>>eddyb, Member
+
+I was wrong. It's an implementation bug, llvm-mirror/llvm@11bf1ab seems to be the fix. Rebasing on top of master should include it.
+
+>>>alexcrichton, Owner
+
+Ok, I've rebased LLVM and have sent that to dev-bors.
+
+Results will be at http://54.176.156.253/grid as they come in
+
+>>>eddyb, Member
+
+MSVC seems to be crashing in a few tests, which are actually assertion failures in debuginfo:
+
+cc @michaelwoerister
+
+EDIT: Backtrace is:
+
+>>>badboy, Contributor
+
+vlad on IRC tried a LLVM 3.9 on Windows last week or so and has some tiny patches in his branch.
+More or less just tiny build system fixes, except for vvuk@c18c244
+
+Might this be a fix for above crashes?
+
+>>>alexcrichton, Owner
+
+Nice idea! I've sent that to bors-dev and we'll see what happens
+
+>>>alexcrichton, Owner
+
+Ok, looks like there may be two errors:
+
+auto-linux-64-debug-opt - I think rustdoc is spuriously segfaulting?
+
+auto-win-msvc-64-cargotest - hyper is segfaulting when compiling
+
+for the latter, I got a backtrace:
+
+>>>eddyb, Member
+
+;##D43 The segfault could be cuased by an assertion
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D42
+;##SEN NEU
+
+@alexcrichton It's segfaulting in rustc while compiling librustc, not sure how that could be spurious.
+Could be a LLVM assertion though. If only we had those enabled always, we could tell :).
+
+The MSVC one seems identical to the more general debuginfo problem which was supposedly fixed.
+
+>>>Thread start
+
+>>>eddyb, Member
+
+;##D44 Is it possible that now NO_SCOPE_METADATA turned wrong?
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Is it possible NO_SCOPE_METADATA is also wrong now?
+
+>>>badboy, edited
+
+You might be right. As far as I traced it the passed value gets unwrapped (which simply does a reinterpret_cast). Unwrapping a non-existent value in C++ is probably the same kind of bad as it is in Rust, except that in Rust it's properly safe to do so and panic.
+
+>>>Thread end
+
+>>>michaelwoerister, Contributor
+n
+MSVC seems to be crashing in a few tests, which are actually assertion failures in debuginfo...
+
+I've seen this kind of assertion in the past in the following cases:
+
+When function calls where not assigned a debug location. Then inlining would lead to instructions seemingly coming from another function.
+
+When a bug lead to closures being translated multiple times, leading to multiple debuginfo descriptions for the same LLVM function.
+
+;##D45 THis crash seems to be caused by the expected version of LLVM
+;##ROLE 
+;##INV 
+;##FORM 
+;##REL 
+;##SEN 
+
+But this seems more likely to be a change in what kind of values LLVM expects in its API?
+
+>>>alexcrichton, Owner
+
+As an update on this I ran against @bors last night with this tree which included an update to the LLVM submodule that @eddyb was able to track down. This fixes the regression of hyper on auto-win-msvc-64-cargotest.
+
+The final remaining failure is:
+
+auto-linux-64-debug-opt
+
+@badboy Can you include a few more commits here as well?
+
+brson@29c9cb3 - a fix to an MSVC test
+
+brson@be0416b - fix for the ArchiveWrapper compilation
+
+brson@ebd64f2 - the most recent LLVM update
+
+>>>bors, Contributor
+
+☔️ The latest upstream changes (presumably #34956) made this pull request unmergeable. Please resolve the merge conflicts.
+
+>>>badboy, Contributor
+
+I just rebased this PR on master, applied the remaining patches and pushed it again.
+
+>>>eddyb, Member
+
+@bors r+ p=10
+
+>>>bors, Contributor
+
+📌 Commit 7c0cd30 has been approved by eddyb
+
+>>>bors, Contributor
+
+⌛️ Testing commit 7c0cd30 with merge 554bc72...
+
+>>>bors, Contributor
+
+💔 Test failed - auto-win-gnu-32-opt
+
+>>>alexcrichton, Owner
+
+@bors: retry
+
+forgot to update the windows bots, now doing so
+
+>>>alexcrichton, Owner
+
+@bors: force
+
+>>>alexcrichton, Owner
+
+@bors: retry
+
+>>>alexcrichton, Owner
+
+@bors: force
+
+>>>michaelwoerister, Contributor
+
+Use the Force, young Skywalker!
+
+>>>alexcrichton, Owner
+
+@bors: retry force clean
+
+>>>bors, Contributor
+
+⌛️ Testing commit 7c0cd30 with merge bea0adf...
+
+>>>bors, Contributor
+
+💔 Test failed - auto-linux-64-nopt-t
+
+>>>alexcrichton, Owner
+
+@bors: retry force clean
+
+>>>bors, Contributor
+
+⌛️ Testing commit 7c0cd30 with merge 21ea9cd...
+
+>>>bors, Contributor
+
+💔 Test failed - auto-linux-64-opt-rustbuild
+
+>>>alexcrichton, Owner
+
+@bors: retry
+
+>>>bors, Contributor
+
+⌛️ Testing commit 7c0cd30 with merge 8f92cbd...
+
+>>>bors, Contributor
+
+💔 Test failed - auto-linux-64-debug-opt
+
+>>>badboy, Contributor
+
+Hmpf. Is there anyway to get anymore debugable info out of that build?
+
+>>>eddyb, Member
+
+@badboy We've tried. Preloading libSegFault.so doesn't work for some reason and Ubuntu has that stupid apport thing that interferes with core dumps. @alexcrichton would have to fix the apport nonsense on the bots before triggering a full build with all the bots on, it's harder to reproduce in isolation.
+
+>>>tmiasko, Contributor
+
+I had similar segfault while building this branch. rustc consistently crashed
+while deleting DIBuilder from LLVM. Starting from a clean working directory
+fixed it. Given that buildbot reports that "clean-llvm cleaned llvm skipped",
+maybe it could also help here.
+
+>>>eddyb, Member
+
+@tmiasko That's interesting. Do you have a backtrace? We couldn't get anything, reproduction seemed to need the concurrent builds, or a specific builder, to trigger.
+
+>>>alexcrichton, Owner
+
+@tmiasko did some digging and discovered that https://reviews.llvm.org/D22858 may be relevant (stack trace gathered). I've updated our LLVM submodule with this commit (rebased on the llvm/release_39 branch) and now it's rust-lang/llvm@d1cc489. @badboy wanna try updating to that and give it a go? Builds in dev are running, but we can do in parallel hopefully :)
+
+>>>badboy, Contributor
+
+Done! Upgraded to d1cc489
+
+>>>eddyb, Member
+
+@bors r+
+
+>>>bors, Contributor
+
+📌 Commit 5d1d247 has been approved by eddyb
+
+>>>bors, Contributor
+
+⌛️ Testing commit 5d1d247 with merge 2c1612c...
+
+>>>bors, Contributor
+
+☀️ Test successful - auto-linux-32-nopt-t, auto-linux-32-opt, auto-linux-64-cargotest, auto-linux-64-cross-freebsd, auto-linux-64-debug-opt, auto-linux-64-nopt-t, auto-linux-64-opt, auto-linux-64-opt-mir, auto-linux-64-opt-rustbuild, auto-linux-64-x-android-t, auto-linux-cross-opt, auto-linux-musl-64-opt, auto-mac-32-opt, auto-mac-64-opt, auto-mac-64-opt-rustbuild, auto-mac-cross-ios-opt, auto-win-gnu-32-opt, auto-win-gnu-32-opt-rustbuild, auto-win-gnu-64-opt, auto-win-msvc-32-opt, auto-win-msvc-64-cargotest, auto-win-msvc-64-opt, auto-win-msvc-64-opt-mir, auto-win-msvc-64-opt-rustbuild
+Approved by: eddyb
+Pushing 2c1612c to master...
+
+>>>badboy, Contributor
+
+Wuhu! 🎉
+
+>>>eminence, Contributor
+
+Outstanding work everyone!
+
+>>>michaelwoerister, Contributor
+
+Epic! :)
+
+>>>shepmaster, Member
+
+Hurrah! Now it's time to rebase the AVR and Emscripten forks and really give it a workout ;-)
+
+>>>badboy, Contributor
+
+@shepmaster: That's the next step and I'll try to work on it this week
+
+>>>bstrie, Contributor
+
+Heroes, every one of you! On with MIR!
+
+>>>whitequark, Contributor
+
+Looks like this missed the LLVM version check in configure, not sure why it didn't break bots:
+
+>>>shepmaster, Member
+
+I have a PR out for that - #35594. No idea about the bots.
+

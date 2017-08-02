@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<genmodel:GenModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore"
+    xmlns:genmodel="http://www.eclipse.org/emf/2002/GenModel" modelDirectory="/gentlebot/src" modelPluginID="gentlebot" modelName="Discussion"
+    rootExtendsClass="org.eclipse.emf.ecore.impl.MinimalEObjectImpl$Container" importerID="org.eclipse.emf.importer.ecore"
+    complianceLevel="8.0" copyrightFields="false" operationReflection="true" importOrganizing="true">
+  <foreignModel>Discussion.ecore</foreignModel>
+  <genPackages prefix="Discussions" basePackage="ca.ubc.cs.gentlebot.model" disposableProviderFactory="true"
+      fileExtensions="disc" ecorePackage="Discussion.ecore#/">
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="Discussion.ecore#//Role">
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Role/original"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Role/core"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Role/other"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="Discussion.ecore#//Form">
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Form/openQuestion"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Form/candidateEnumeration"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Form/solution"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="Discussion.ecore#//Sentiment">
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Sentiment/neutral"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Sentiment/positive"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//Sentiment/negative"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="Discussion.ecore#//RelationshipType">
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//RelationshipType/new"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//RelationshipType/elaborates"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//RelationshipType/generalizes"/>
+      <genEnumLiterals ecoreEnumLiteral="Discussion.ecore#//RelationshipType/reframes"/>
+    </genEnums>
+    <genClasses ecoreClass="Discussion.ecore#//Discussion">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference Discussion.ecore#//Discussion/participants"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference Discussion.ecore#//Discussion/comments"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Discussion/title"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Discussion/invitedUsernames"/>
+      <genOperations ecoreOperation="Discussion.ecore#//Discussion/toString"/>
+      <genOperations ecoreOperation="Discussion.ecore#//Discussion/toARFF"/>
+      <genOperations ecoreOperation="Discussion.ecore#//Discussion/getAllUtterances"/>
+      <genOperations ecoreOperation="Discussion.ecore#//Discussion/getAllDesignPoints"/>
+    </genClasses>
+    <genClasses ecoreClass="Discussion.ecore#//Participant">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Participant/name"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Participant/member"/>
+      <genOperations ecoreOperation="Discussion.ecore#//Participant/toString"/>
+    </genClasses>
+    <genClasses ecoreClass="Discussion.ecore#//Comment">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Comment/author"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Comment/rawContent"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Comment/next"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Comment/previous"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Comment/id"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Comment/utterances"/>
+      <genOperations ecoreOperation="Discussion.ecore#//Comment/toString"/>
+    </genClasses>
+    <genClasses ecoreClass="Discussion.ecore#//DesignPoint">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//DesignPoint/role"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//DesignPoint/form"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//DesignPoint/sentiment"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//DesignPoint/summary"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//DesignPoint/id"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//DesignPoint/utteranceDescription"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//DesignPoint/relationship"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//DesignPoint/postedBeforeCommits"/>
+    </genClasses>
+    <genClasses ecoreClass="Discussion.ecore#//Utterance">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Utterance/content"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Utterance/comment"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Utterance/description"/>
+    </genClasses>
+    <genClasses ecoreClass="Discussion.ecore#//UtteranceDescription">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//UtteranceDescription/utterance"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/tfidfVector"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/authorIsProjectMember"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/numberOfWords"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/commentsSoFar"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/allUtterancesSoFar"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/utterancesInCommentSoFar"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/utteredByOriginalPoster"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/hasCapitalizedWord"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/containsShould"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/topicVector"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//UtteranceDescription/designPoints"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/name"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/content"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//UtteranceDescription/authorInvited"/>
+    </genClasses>
+    <genClasses ecoreClass="Discussion.ecore#//Relationship">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute Discussion.ecore#//Relationship/type"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Relationship/designpoint"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference Discussion.ecore#//Relationship/target"/>
+    </genClasses>
+  </genPackages>
+</genmodel:GenModel>

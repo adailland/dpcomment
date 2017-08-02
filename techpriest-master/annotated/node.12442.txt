@@ -1,0 +1,1752 @@
+>>>addaleax, Owner
+
+See nodejs/CTC#12 for discussion/background. I would say that that thread is a better place for general discussion, and I prefer it if comments here would be kept to what is directly relevant for this PR.
+
+CI: https://ci.nodejs.org/job/node-test-commit/9143/
+
+Checklist
+
+ make -j4 test (UNIX), or vcbuild test (Windows) passes
+
+ tests and/or benchmarks are included
+
+ documentation is changed or added
+
+ commit message follows commit guidelines
+
+Affected core subsystem(s)
+
+util, timers
+
+Original commit descriptions
+
+util: add internal bindings for promise handling
+
+Add methods for creating, resolving and rejecting promises using the V8 C++ API that does not require creation of extra resolve and reject functions to process.binding('util').
+
+util: add util.promisify()
+
+Add util.promisify(function) for creating promisified functions.
+
+Fixes: nodejs/CTC#12
+
+timers: add promisify support
+
+Add support for util.promisify(setTimeout) and util.promisify(setImmediate) as a proof-of-concept implementation. clearTimeout() and clearImmediate() resolve the promise immediately instead of rejecting it; that might be the most opinionated choice about this.
+
+/cc @chrisdickinson @benjamingr @Fishrock123 @nodejs/ctc
+
+edit: CTC voting comment
+
+>>>addaleax, Owner
+
+Also, @benjamingr has a good point about the naming, quote:
+
+optimally I'd hope for most people to not even be aware of what a promise is in 5 years and just use async/await seamlessly :)
+
+We can bikeshed this further here, but just to get an idea how people feel, could people 👍 this comment for “promisify sounds good” and 👎 this for “I’d prefer awaitable or something else” (both assuming that we agree on the approach in this PR in general)?
+
+>>>Fishrock123, Owner
+
+;##D1 We should dealy timers, they don't map well without cancelables
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Maybe we should split the timers bits into a second PR? They don't map well to promises since we don't have cancelables. Maybe we could plug the timers props onto the promise itself? Not sure.
+
+>>>Fishrock123, Owner
+
+;##D2 clearTimeout should work on the return of setTimeoutPromise
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+I.e. clearTimeout() should probably work on whatever setTimeoutPromise() returns (a promise but you get the idea), same for Immediates.
+
+>>>Thread start
+
+>>>williamkapke, Member
+
+;##D3 This test is redundant
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This truthy test of orig is not needed since it is guaranteed to be a function at this point
+
+>>>addaleax, Owner
+
+@williamkapke thanks for catching, done
+
+>>>Thread end
+
+>>>benjamingr, Member
+
+A big +1 on this. I think this could be a great first step for helping users deal with async/await in their code. There is a clear benefit over a userland implementation, and the need is prevalent.
+
+>>>Fishrock123, Owner
+
+;##D4 Needs more work on wrapping complex APIs
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Going to expand on my point a bit: I think this is reasonable to do for simple callback APIs but I think we should spend more* time to think about how to wrap more complex APIs such as timers, child processes, etc well.
+
+* Might be good for an EP?
+
+>>>addaleax, Owner
+
+Maybe we should split the timers bits into a second PR?
+
+;##D5 Timers could be good to include not comforming standard cb patters
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+If that’s what people here prefer, sure. I just thought it made sense because they’re about the only API that’s a bit icky because they don’t conform to Node’s standard callback pattern, so whenever we introduce something like util.promisify() we’d probably also want to have support for promisified timers (in some way).
+
+;##D6 clearTimeout should work on the return of setTimeoutPromise
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+I.e. clearTimeout() should probably work on whatever setTimeoutPromise() returns (a promise but you get the idea), same for Immediates.
+
+Makes sense, I’ve updated the PR with isPromise(timer) checks anyway.
+
+>>>benjamingr, Member
+
+@Fishrock123
+
+;##D4 Needs more work on wrapping complex APIs
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Going to expand on my point a bit: I think this is reasonable to do for simple callback APIs but I think we should spend more time to think about how to wrap more complex APIs such as timers, child processes, etc well.
+
+;##D7 We need a promised code
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D4
+;##SEN NEU
+
+I definitely agree - we need a proper promised core at some point - but #5020 and similar attempts have stagnated and quoting myself in the original issue:
+
+;##D8 util.awaitable is a better idea than a promsied codre
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D7
+;##SEN NEu
+
+The idea of util.awaitable vs a promise core is that it's hopefully a lot less objectionable, it poses a lot less controversy, it's a lot less opinionated and it means exposing a capability that users can build on and not an API.
+
+>>>addaleax, Owner
+
+I think @Fishrock123’s comment was about the timers stuff, not the general API here? I feel inclined to disagree that this needs an EP, though…
+
+>>>Fishrock123, Owner
+
+Correct. I only mean for how to wrap any APIs that are more complex than single events or callbacks and which do not wrap as well.
+
+>>>Thread start
+
+>>>TimothyGu, edited
+
+;##D9 We should maintain this legal for consistency, and function isn't legal
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+function isn't a legal identifier in JS, and for consistency we probably want to keep it legal.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+"Using the util.promisify.custom symbol"?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+Lower case "custom"
+
+>>>addaleax, Owner
+
+I think the uppercase variant is okay here, it’s referring to a literal section title, and it matches what we do for the other two section references in this file. If you feel strongly about it I’ll change it.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+You probably want to clarify setImmediate() or its promisified equivalent.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+Ditto.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+;##D10 What about the prototype of orig?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What about the prototype of orig?
+
+>>>addaleax, Owner
+
+@TimothyGu yeah … that thought occurred to me, but I basically didn’t see how setting it would make sense here. If you prefer, I’ll add
+
+>>>TimothyGu, edited
+
+Yeah I don't see how it would matter that much in real world, but having that there does seem a bit more natural to me. Up to you if you want to set it or not.
+
+>>>TimothyGu, Member
+
+;##D11 It wouldn't matter that much
+;##ROLE PM
+;##INV PM
+;##FORM F
+;##REL ELAB D10
+;##SEN NEU
+
+I don't think it would matter that much; it just occurred to me having the prototype being equivalent might be more natural. Up to you.
+
+>>>addaleax, Owner
+
+@TimothyGu I’ve included it for now, let’s see what people think.
+
+>>>Thread end
+
+>>>addaleax, Owner
+
+@TimothyGu Addressed most of your comments, PTAL
+
+>>>Thread start
+
+>>>vkurchatkin, Member
+
+;##D12 We shouldn't allow to cancel promisified timeout for now
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This seems like a bad idea for many reasons. I think it's fine if you can't cancel promisified timeout until we have some generic cancellation mechanism.
+
+>>>addaleax, Owner
+
+This seems like a bad idea for many reasons.
+
+Would you care to provide some? Otherwise this is just not helpful.
+
+>>>vkurchatkin, Member
+
+;##D13 Attaching properties to native object is a bad idea for performances
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D12
+;##SEN NEU
+
+;##D14 Ad hoc mechanism ar bad if there's no general mechanism
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D12
+;##SEN NEU
+
+First of all, attaching properties to native objects seems like a bad idea from performance perspective. Secondly, this implements ad hoc cancellation mechanism, while there is no spec on standards track or even community consensus. This approach suffers from the fact that it's not propagated and there it doesn't play nice with async-await.
+
+;##D15 It should be fine to make promisified not cancellable
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D12
+;##SEN NEU
+
+I think it's fine to make promisified versions not cancellable. If you use them you are most likely not going to cancel anyway.
+
+>>>addaleax, Owner
+
+;##D13 Attaching properties to native object is a bad idea for performances
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D12
+;##SEN NEU
+
+First of all, attaching properties to native objects seems like a bad idea from performance perspective.
+
+;##D16 It would be opt-in only
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D13
+;##SEN NEU
+
+That’s true, but it’s opt-in, right?
+
+This approach suffers from the fact that it's not propagated
+
+What do you mean by propagated?
+
+But yeah, I would be okay with dropping clear* support for these, at least for the time being.
+
+>>>vkurchatkin, Member
+
+
+What do you mean by propagated?
+
+Something like this:
+
+>>>jasnell, Owner
+
+;##D17 We shoudl avoid this until we have a standard way to cancel promises
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D14
+;##SEN NEU
+
+I have to agree with @vkurchatkin on this. Until there is a standard way of canceling promises, we likely shouldn't do this.
+
+>>>addaleax, Owner
+
+@vkurchatkin @jasnell Okay, I’ve dropped clearTimeout/clearImmediate support. It’s a niche feature anyway and it should be easy to readjust later if we want.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>thefourtheye, Contributor
+
+Nit: first may not be necessary here
+
+>>>addaleax, Owner
+
+You’re right. I wanted to phrase this error message in a way that makes it as unlikely as possible that changing it is semver-major, but if you prefer another wording, I’ll gladly change it. 😄
+
+>>>thefourtheye, Contributor
+
+;##D18 We could just drop first
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I was thinking maybe we can just drop first. When I read the error message, my mind understood that as there are more than one argument. Not a big deal though.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>thefourtheye, edited
+
+There are few cases where we pass more than one value like in fs.read
+
+>>>addaleax, Owner
+
+;##D19 I could add more custom code for those APIs
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+So … if you like, I can check for those APIs and add custom code for them in this PR? I think that makes sense but maybe not everybody is comfortable with yet more changes in here…
+
+>>>thefourtheye, Contributor
+
+;##D20 We could use rest operator?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL ELAB D19
+;##SEN NEU
+
+We can use rest operator with data and with an if condition this can be fixed, right? Only thing is the resolved value will be an array for these special cases.
+
+>>>addaleax, Owner
+
+;##D21 We already have 6 functions doing that
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D20
+;##SEN NEu
+
+@thefourtheye We have about 6 top-level functions doing that, I’ve taken a stab at addressing them in a clean way in this PR (see the most recent 3 commits)… please take a look :)
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+;##D22 THis could lead to a crash due to immediate be undefined
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+If the original immediate was a promise not coming from setImmediate(), immediate should be undefined here, and this might crash. Not sure if we want that.
+
+>>>addaleax, edited
+
+;##D23 This part of the code doesn't typecheck for now
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL GEEN D22
+;##SEN NEU
+
+This code doesn’t have any typechecks right now anyway, you can just pass in anything and hope it doesn’t go up in flames.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+I don't think it would matter that much; it just occurred to me having the prototype being equivalent might be more natural. Up to you.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+I'd make sure this doesn't decrease the performance of getting fn's properties; if in doubt, an if (Object.getPrototypeOf(fn) !== Object.getPrototypeOf(orig)) might be good.
+
+>>>addaleax, edited
+
+V8 implements setPrototypeOf as a no-op if they are already equal, I’ve checked that in the past to be sure. 😄
+
+>>>Thread end
+
+>>>Thread start
+
+>>>thefourtheye, Contributor
+
+;##D24 Should we do this considering promises are idempotent?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Promises are idempotent right? Should we really do this?
+
+>>>benjamingr, Member
+
+;##D25 It's necessary to check that the promise is pending
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D24
+;##SEN NEU
+
+It's to check that the promise is pending at that point. It might not be necessary but not because of idempotence.
+
+>>>addaleax, Owner
+
+Hm, maybe it is necessary to always check for that… some really weird userland functions could schedule the callback to run and then throw after that. (And using this code would actually change the Promise state.)
+
+>>>addaleax, Owner
+
+I’ve updated this to return as a no-op when the promise is not pending.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>thefourtheye, Contributor
+
+;##D26 We may need a condition for callbacks without return values
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+We may need another condition here for callbacks which don't return anything interesting, like rmdir
+
+>>>addaleax, Owner
+
+@thefourtheye thanks for catching, done
+
+>>>thefourtheye, Contributor
+
+There is only one case where this will fail, fs.exists. But we don't have to worry much about it anyway I guess, as it is deprecated.
+
+>>>Thread end
+
+>>>addaleax, Owner
+
+@benjamingr @TimothyGu It’s nice to see support so soon, but you may want to give the changes here based on @thefourtheye’s comments a look, I don’t want to just assume they LGTY too
+
+edit: new CI: https://ci.nodejs.org/job/node-test-commit/9146/
+https://ci.nodejs.org/job/node-test-commit/9147/
+https://ci.nodejs.org/job/node-test-commit/9148/ (green 🎉)
+
+>>>vkurchatkin, Member
+
+;##D27 We might want to have promisifed versions of built-in modules, due to problem with typecheckers
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+One more thing to consider: util.promisify won't play nice with typecheckers, such as Flow and Typescript. For this reason I personally would prefer to have promisifed versions of built-in modules out of the box.
+
+>>>benjamingr, Member
+
+;##D28 TYpecheckers should not be a problem since ts 2.2
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D27
+;##SEN NEU
+
+@vkurchatkin mind elaborating? Since TypeScript 2.2 and keyof I've been able to get perfectly decent typings with TypeScript - you can specify the type as "takes a function that takes N arguments and a node callback and return a function that takes N arguments and returns a promise".
+
+>>>vkurchatkin, Member
+
+;##D29 Overloads work, but its not a nice solution and might nto work
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D28
+;##SEN NEU
+
+@benjamingr I guess you could declare overloads for some sufficient number of arguments (in both Flow and TS), but it's not so nice and also won't work with custom promisified implementations.
+
+>>>benjamingr, Member
+
+@addaleax I'm still LGTM but would rather have this split into two PRs - one just addzing promisify (as awaitable) without touching any core methods and one adding the rest of the API
+
+>>>addaleax, Owner
+
+@benjamingr So … I’ve thought about this a bit, and I’m not sure the advantages in splitting this up are large enough to me; we can obviously land the changes for the built-in modules separately, but they should definitely be released together. And if there is non-trivial feedback on the timers/child_process/fs/dns changes, I’d say there’s a good chance we would take a look at util.promisify itself to see if changes in it would help address that feedback.
+
+>>>thefourtheye, Contributor
+
+@addaleax As far as I know the current implementation will fail only for fs.exists. Since its usage is discouraged, we don't have to spend much time on it I think.
+
+>>>addaleax, Owner
+
+@thefourtheye Yeah, I think it’s okay to leave fs.exists alone. It’s more interesting for e.g. the 2 child_process methods which give you a (err, stdout, stderr) callback – that would be weird if they didn’t have custom implementations.
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+;##D30 argumentsNames !== undefined should be prefered over values.length = 1
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The logic should probably prefer argumentNames !== undefined over values.length === 1, since if for some reason the second argument (like stderr) is undefined we would still want to resolve an object.
+
+>>>addaleax, Owner
+
+;##D31 THe difference matters only in the case of dns.lookup
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D30
+;##SEN NEU
+
+So, there is one case where this currently matters, and that is dns.lookup, which has different callback signatures depending on whether the all option is set to true. That would need some special handling if the cases here get switched. I could do it now, but I’ve kept argumentNames internal in order to make sure we can keep code noise to a minimum and tweak this logic at a later point if we want/need to.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>BridgeAR, Contributor
+
+This should be setTimeoutPromise.
+
+>>>addaleax, Owner
+
+@BridgeAR thanks for catching, fixed!
+
+>>>Thread end
+
+>>>misterdjules, Contributor
+
+I have the same concerns with this PR that I had with #5020 (see #5020 (comment), some parts of #5084 and nodejs/post-mortem#16, among other discussions).
+
+;##D32 If we catch every exception by default, we have a different handling process than standard
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The TL;DR is: it seems that, by catching all uncaught exceptions by default, "promisified" functions would present an error handling model that is fundamentally different than the one currently presented by node's core APIs.
+
+;##D33 This handling model would be incompatible with our best practices
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB 32
+;##SEN NEU
+
+The error handling model of promisified functions seems like it would not be compatible with some of the best practices regarding error handling that have been established in the past. Post-mortem debugging is one use case of this error handling model that would be significantly impacted.
+
+As a result, I would be -1 on these changes. /ccing the @nodejs/post-mortem team in case they have additional feedback.
+
+;##D34 Are promises still unhooked from domains?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NUE
+
+On a different topic, It seems that promises are still not hooked with domains, is that correct?  It's a much lesser concern as it seems the facilities to support this have been introduced in V8 and IIRC are available from V8 5.7, so I would think it would be possible to fix this specific issue.
+
+>>>addaleax, Owner
+
+;##D35 If we catch every exception by default, we have a different handling process than standard
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The TL;DR is: it seems that, by catching all uncaught exceptions by default, "promisified" functions would present an error handling model that is fundamentally different than the one currently presented by node's core APIs.
+
+;##D36 Promise have a different handling model by design
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D35
+;##SEN NEU
+
+Yes, but as has been pointed out elsewhere, Promises have a different error handling model by design. I agree with a lot of what you say, but it’s just a fact that Promises are seeing widespread adoption, whether we explicitly support them in core or not (that we ship async/await now might be much more of a factor than this PR could be), so I personally don’t think it’s sensible to link this PR to the issues with debugging.
+
+(I appreciate you speaking up, and if you are voicing formal opposition, then this is the right place, but if you want to continue this discussion can we please move it to nodejs/CTC#12 as requested above?)
+
+;##D37 Are promises still unhooked from domains?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NUE
+
+It seems that promises are still not hooked with domains, is that correct? It's a much lesser concern as it seems the facilities to support this have been introduced in V8 and IIRC are available from V8 5.7, so I would think it would be possible to fix this specific issue.
+
+;##D38 It might be a good idea to hook them
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D37
+;##SEN NEU
+
+Yes, Promises are not wired up with domains and V8 5.7 has the promise hooks that we want. Maybe it would be a good idea to wire that up with domains, but just icymi, async_hooks are around the corner (#11883). (edit: to clarify, they don’t have promise hooks yet either, but unlike domains, there are concrete plans to implement that)
+
+>>>jasnell, Owner
+
+;##D39 Could we add an optional option for error handling?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Random thought: could we not add an optional options object to util.promisify() that would allow the error handling to be configurable?
+
+
+>>>addaleax, Owner
+
+;##D40 Would synchronousReject be a good name?
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELABD 39
+;##SEN NEU
+
+@jasnell Sure, we could do that. I’d maybe call it something like synchronousReject or something (because otherwise this might lead to confusion with uncaught exceptions in the process.on('uncaughtException') sense). Does that sound okay?
+
+>>>jasnell, Owner
+
+Works for me!
+
+>>>addaleax, Owner
+
+
+;##D41 Having that option might force to maintain multiple variants
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D39
+;##SEN NEU
+
+@jasnell Thinking about it … are you sure that makes much sense, though? For code inside a promise chain there won’t be much of a difference, and it would mean that if core moves towards providing special promisified versions for functions (which might be useful to get performance more comparable to what callbacks provide), it would possibly have to maintain multiple such variants…
+
+>>>jasnell, Owner
+
+;##D42 We should separate to make handing errors consisten tacross promises
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+yeah, good point. Separating out the error handling so that it can be handled more consistently across all promises, not just those created using util.promisify() is a good thing.
+
+>>>misterdjules, Contributor
+
+@addaleax
+
+;##D43 Promise have a different handling model by design
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D35
+;##SEN NEU
+
+Yes, but as has been pointed out elsewhere, Promises have a different error handling model by design.
+
+I agree, and what I tried to convey is that the design of Promises presents an error handling model that is not compatible with some existing best practices used by a significant part of node users. I just wanted to be very specific and point to the changes in this PR that implement this part of the Promises design to avoid any confusion.
+
+;##D43 THat error handling model is not suitable for every case
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D42
+;##SEN NEU
+
+I would add that the fact that the Promises error handling model was designed the way it is intentionally doesn't make it more suitable for some use cases.
+
+it’s just a fact that Promises are seeing widespread adoption, whether we explicitly support them in core or not (that we ship async/await now might be much more of a factor than this PR could be), so I personally don’t think it’s sensible to link this PR to the issues with debugging.
+
+I don't understand that part of your response. Do you mean that the popularity of promises outweighs the issues they present with regards to existing best practices for error handling, including those that allow for using post-mortem debugging techniques?
+
+(I appreciate you speaking up, and if you are voicing formal opposition, then this is the right place, but if you want to continue this discussion can we please move it to nodejs/CTC#12 as requested above?)
+
+I had seen that request in the original post, but I wanted to voice a formal opposition. Now that I've done that though, I'm willing to continue the conversation wherever you'd like to see it happen.
+
+;##D44 It might be a good idea to hook them
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D37
+;##SEN NEU
+
+Yes, Promises are not wired up with domains and V8 5.7 has the promise hooks that we want. Maybe it would be a good idea to wire that up with domains, but just icymi, async_hooks are around the corner (#11883). (edit: to clarify, they don’t have promise hooks yet either, but unlike domains, there are concrete plans to implement that)
+
+
+;##D45 This might lead to an increase in issuesq
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D44
+;##SEN NEU
+
+I would be concerned that current users of domains, even though domains are deprecated, would be increasingly hit by issues such as nodejs/node-v0.x-archive#8648 without a smooth migration path. Asking users to move to using async hooks seems like it could be highly disruptive for them. So I would think that if hooking promises to domain is not a large undertaking, it would be a good idea to at least investigate what it would take. I'm volunteering to do this work if that would help.
+
+>>>Thread start
+
+>>>MadaraUchiha, edited
+
+I'm currently looking into adding as many tests as possible from Bluebird, one of those is the following:
+
+;##D46 Would it be useful to keep track of promisified functiosn to not promisify them again?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Do you think it would be beneficial to keep track of promisified functions and not promisify them again? cc @benjamingr #goodnessSquad
+
+>>>addaleax, Owner
+
+@MadaraUchiha sure, makes sense. done!
+
+>>>Thread nend
+
+>>>giltayar, Contributor
+
+While writing tests for kCustomPromisifyArgsSymbol, I "found out" that this symbol is not exported via the promisify function, like promisify.custom is, but is rather exported only in internal/util.
+
+;##D47 WHy was kCustomPromisifyArgsSymbol not exported?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+This looks like an explicit design decision, but I was wondering why the decision to do this. I can definitely see people wanting to use it, just like they would want to use promisify.custom.
+
+Also, is there a way to access internal/util from the tests, so that I can test it explicitly? (and not like today, where it is tested implicitly via the test for promisify(exec)
+
+#goodnesssquad
+
+>>>addaleax, Owner
+
+;##D48 WHy was kCustomPromisifyArgsSymbol not exported?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+This looks like an explicit design decision, but I was wondering why the decision to do this. I can definitely see people wanting to use it, just like they would want to use promisify.custom.
+
+;##D49 It's possible to emulate it with promisify.custom
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D48
+;##SEN NEU
+
+Mostly, see this discussion: #12442 (comment) – In short, emulating it is already kinda doable with promisify.custom, and it might be nice to have it available internally for more flexibility, at least for now. :)
+
+Also, is there a way to access internal/util from the tests, so that I can test it explicitly? (and not like today, where it is tested implicitly via the test for promisify(exec)
+
+Is adding // Flags: --expose-internals on the first line in the test file what you are looking for? :) It allows you to require('internal/…').
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+original[util.promisify.custom]
+
+>>>Thread end
+
+>>>Thread start
+
+>>>TimothyGu, Member
+
+What happens in case of the following:
+
+;##D50 It would be a good idea to define kCustomPromisifiedSYmobl 
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Seems like a good idea to define kCustomPromisifiedSymbol on the returned function even when there is an existing orig[kCustomPromisifiedSymbol].
+
+>>>Thread end
+
+>>>addaleax, Owner
+
+@TimothyGu thanks for pointing out, addressed both comments :)
+
+>>>Thread start
+
+>>>jasnell, Owner
+
+What happens if a Promise that is not a promisified-variant of setImmediate()?
+
+>>>benjamingr, Member
+
+On it.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jasnell, Owner
+
+s/is a/is an
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jasnell, Owner
+
+I would move this up further and show an example.
+
+>>>addaleax, Owner
+
+I think this is a situation that’s rare enough not to mention it at the top. I’ve added an example here, though.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jasnell, Owner
+
+I have to agree with @vkurchatkin on this. Until there is a standard way of canceling promises, we likely shouldn't do this.
+
+>>>Thread end
+
+>>>yunong, 👍
+            4
+
+@addaleax
+
+it’s just a fact that Promises are seeing widespread adoption, whether we explicitly support them in core or not (that we ship async/await now might be much more of a factor than this PR could be),so I personally don’t think it’s sensible to link this PR to the issues with debugging.
+
+@misterdjules
+
+I don't understand that part of your response. Do you mean that the popularity of promises outweighs the issues they present with regards to existing best practices for error handling, including those that allow for using post-mortem debugging techniques?
+
+;##D51 Do we want really to trade-off safe-handling for popularity
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I emphatically agree with @misterdjules here. Are we willing to make the trade-off of safe error handling (and by association reliability and debuggability) versus popularity in Node core?
+
+We run node at scale in production here at Netflix, where reliability and debuggability are of the utmost importance to our customers and us. I would strongly caution against landing this PR and encourage dialogue with folks (Netflix, Pinterest, Uber, Twitter, Uber, Joyent, among others) who are running Node at scale to gather feedback.
+
+;##D52 It's imperative thar we maintain safe error handlign
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D51
+;##SEN NEU
+
+This PR means that we're unable to safely rely on the existing error handling semantics, namely not swallowing errors by default or affecting post-mortem debugging. Again, I can't stress how critical the existing error handling semantics are regarding operating our Node stack in the critical Netflix streaming path at scale. It's imperative to us that the Node runtime continues to work with the existing error handling best practices. After all, we're relying on Node in some of our most critical systems here at Netflix, where reliability and debuggability are our top priority.
+
+>>>addaleax, Owner
+
+@yunong I appreciate you speaking up on this matter, but I’ve replied to Julien’s comment above as well at yours at nodejs/CTC#12 (comment). As noted above, that’s a better place for more general concerns about improved Promise support in Node core.
+
+(@jasnell I’ll get to addressing your review later today, probably.)
+
+>>>addaleax, Owner
+
+@jasnell Updated, PTAL
+
+CI: https://ci.nodejs.org/job/node-test-commit/9234/
+
+>>>Thread start
+
+>>>thefourtheye, Contributor
+
+Single quotes
+
+>>>addaleax, Owner
+
+@thefourtheye thanks, fixed!
+
+>>>Thread end
+
+>>>Thread start
+
+>>>thefourtheye, Contributor
+
+format typo
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jasnell, Owner
+
+might be worthwhile adding this as a utility in common.js ... e.g.
+
+>>>addaleax, Owner
+
+@jasnell done!
+
+>>>Thread end
+
+>>>Thread start
+
+>>>ljharb, Other
+
+;##D53 Can use weakmap as a cache instead of installing in the original function
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+This seems like it's observably installing something onto the original function (symbols are fully public). If so, could this use a WeakMap as a cache instead?
+
+>>>addaleax, Owner
+
+
+This seems like it's observably installing something onto the original function
+
+;##D54 The current way make sense to avoid inconsistency
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D53
+;##SEN NEU
+
+Onto an user-supplied promisified version of the original function, yes. I know this seems a bit odd, but it makes sense for consistency with the common case of not having a custom function…
+
+symbols are fully public
+
+I know that :)
+
+If so, could this use a WeakMap as a cache instead?
+
+;##D55 Is the problem performance or visibility?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL REFR D53
+;##SEN NEU
+
+It could, but are you worried about a performance impact, or visibility of the symbol? If it’s the former, I’m not sure that’s relevant, it would be odd for users to call their own function that they made specifically for util.promisify(); if it’s the latter… it’s a symbol meant for public use, not to hide something.
+
+>>>ljharb, Other
+
+;##D56 The problem is just visibility and safety
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D55
+;##SEN NEU
+
+I'm not worried about performance - just visibility. String(Object.getOwnPropertySymbols(util.promisify(() => {}))[0])) === 'Symbol(util.promisify.custom) would become part of the API, or at least something to debate about changing later; Code relying on Object.getOwnPropertySymbols(func) could suddenly break if someone calls util.promisify on it (which means it's susceptible to any mutation, but that doesn't mean node core should be the cause of it); if you later want to cache more information than the function itself, the implementation of this caching suddenly could become semver-major; const sym = Object.getOwnPropertySymbols(util.promisify(() => {}))[0]; func[sym] = notAFunction; would mean that util.promisify(func) would not reliably produce a function that returns a promise (which absolutely could break code)…
+
+;##D57 IS the purpose just avoid calling util.promisfy later?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL ELAB D56
+;##SEN NEU
+
+Is the purpose of the symbol so that users don't need to call util.promisify later, or is the purpose caching? If the former, what's the utility? If the latter, why not use an implementation detail that's invisible to consumers?
+
+>>>ljharb, Other
+
+Maybe I'm totally misunderstanding and this is a mechanism for overriding the promisified version of a function - in which case, how is the symbol globally exposed to users?
+
+>>>ljharb, Other
+
+;##D58 SInce it's an intentional cusotm API, shouldn't it assert the value?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL REFR D57
+;##SEN NEU
+
+ok, re-reading i see util.promisify.custom - so it appears that this is an intentional custom API, not primarily a caching mechanism. In that case, should this not assert that the value is indeed a function, and either throw or ignore it if it's not?
+
+>>>addaleax, Owner
+
+
+In that case, should this not assert that the value is indeed a function
+
+It probably should, yes. I’ve updated the PR with that. :)
+
+>>>littledan, Other
+
+;##D59 We could use the V8 API for this
+;##ROLE ETF
+;##INV F
+;##FORM SOL
+;##REL REFR D58
+;##SEN NEU
+
+You could use the V8 API to get a private symbol here using Private::New if not adding public properties is important here.
+
+>>>addaleax, Owner
+
+@littledan I know, but thanks for the pointer. This is supposed to be a public symbol, though :)
+
+>>>benjamingr, Member
+
+@ljharb anything else pending you've asked for or are you LGTM?
+
+>>>ljharb, Other
+
+;##D60 Why would a function already returning a promise be promifisified?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Just the isAsyncFunction question - I'm not sure why a function that already returns a promise should ever be promisified, explicit symbol or not.
+
+>>>Thread end
+
+>>>addaleax, Owner
+
+@thefourtheye Mind taking another look? I fixed your typo but I’m not sure whether you had more review comments and Github just lost them or you deleted them or I’m just imagining things…
+
+>>>Thread start
+
+>>>ljharb, Other
+
+;##D61 Why would a function already returning a promise be promifisified?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Why would an async function need a promisified version of itself, such that this condition goes after checking the symbol?
+
+>>>benjamingr, Member
+
+;##D62 It doesn't, it returns an identity
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D61
+;##SEN NEU
+
+It doesn't - that'a why identity is returned.
+
+>>>ljharb, Other
+
+The current code reads from the custom symbol and returns that, before checking if orig is an async function - i'm suggesting moving that check higher up so that async functions can't have custom promisified versions.
+
+>>>addaleax, Owner
+
+I don’t have too strong feelings, but tbh, if a user explicitly asks for a certain behaviour, I think that should be what they get
+
+>>>ljharb, Other
+
+;##D63 It might lead to user unintnetionally ask for that behavior
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D62
+;##SEN NEU
+
+I think that the more likely scenario is that the user will unintentionally ask for that behavior without realizing that it's unnecessary; the alternative is that having a custom function on an async function could throw for now, and if use cases present themselves, the throwing could be removed.
+
+>>>benjamingr, Member
+
+I don't have strong feelings, I'm fine with just 'promisifying' async functions.
+
+>>>benjamingr, Member
+
+;##D64 We shoudl avoid special-case
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D63
+;##SEN NEU
+
+Come to think of it, I don't think we should special-case async functions since functions can take callbacks and return promises too and promisify should be consistent on those.
+
+I'd expect util.promisify to return a function that returns a promise for the callback'd value and not the originally returned promised.
+
+>>>addaleax, edited
+
+@benjamingr hmm, I’ll think about it for a bit. I see the point in your example, but it doesn’t feel quite right to pass an extra cb in that case…
+
+(Also, util.promisify would be exactly for that case, to enable users to avoid using the callback API ;))
+
+>>>not-an-aardvark, Member
+
+;##D65 Having special behaviour would just be confusing
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D64
+;##SEN NEU
+
+In my opinion, it would be confusing to have special behavior for async functions. As a user, I would expect to be able to convert any Promise-returning function to an analogous async function without worrying about behavior changes. This is usually a safe assumption because async functions are indistinguishable from regular functions*, but it won't hold if util.promisify has "magic" behavior and treats async functions differently.
+
+My intuitive model of this function is that it should behave like this (with better performance):
+
+This is a relatively simple spec and is easy to understand. I think util.promisify will get more confusing the more it deviates from this.
+
+*Aside from rarely-used operations such as func.toString() and func.constructor
+
+>>>ljharb, Other
+
+;##D66 Having a sumbol overried means that they expectation doesn't hold already
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D65
+;##SEN NEU
+
+@not-an-aardvark That approach would make sense as well, but the existence of a symbol override means that your expectation already doesn't hold. Similarly, if you have a callback-taking function with an overridden promisification, and you convert it to an async function, then when would you need an overridden promisification on that async function?
+
+>>>not-an-aardvark, Member
+
+;##D67 Having a sumbol overried means that they expectation doesn't hold already
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D65
+;##SEN NEU
+
+That approach would make sense as well, but the existence of a symbol override means that your expectation already doesn't hold.
+
+Fair enough, but that's a one-line addition, and I would say the API is still easy to understand with that change because it's still easily polyfillable.
+
+Similarly, if you have a callback-taking function with an overridden promisification, and you convert it to an async function, then when would you need an overridden promisification on that async function?
+
+;##D68 This applies to any function taking a promise and accepting cb, not only promisified
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D67
+;##SEN NEU
+
+Note that this doesn't just apply to overridden promisifications -- it's applicable for any function that returns a Promise and also accepts a callback, where the Promise and the callback don't always resolve to the same value..
+
+;##D69 The problem is caused by us changing the behavior based on the creation of the function, rather that if it returned a promise.
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D68
+;##SEN NEU
+
+I'm not trying to argue that making a function behave like this is good design. The problem is that we're changing behavior based on whether the function was created using the async function syntax, which is an implementation detail of the function and not part of its public API. If we changed behavior based on whether the function returned a Promise, then it wouldn't be a problem (although that could be difficult to determine without calling the function beforehand).
+
+As an example: it's common for people to write async functions, and use Babel to transpile the code to an identically-behaving function that does not use async/await syntax. This works because consumers don't care whether a function is an async function -- they only care that it returns a Promise and never throws synchronously. With the current util.promisify implementation, this would not be the case -- it would be impossible for Babel to accurately transpile async functions because we would be making decisions based on the syntax that the function was created with. As a result, users could end up with confusing bugs where some code works with Babel, but fails when Babel is removed.
+
+>>>ljharb, 👍
+            1
+
+That's a very good point, and a strong argument to remove the check altogether. @addaleax, thoughts?
+
+>>>addaleax, Owner
+
+@not-an-aardvark @ljharb Ack, that is a very good point. I’ve removed that check.
+
+>>>Thread end
+
+>>>benjamingr, Member
+
+@thefourtheye @evanlucas @vkurchatkin any other reservations from the review? (From what I see all comments were fixed)
+
+@littledan are you fine with deferring #12442 (comment) to a later PR? Do the changes look fine to you?
+
+>>>littledan, 👍
+            1
+
+@benjamingr Yes, completely fine with deferring further optimizations. I don't see any particular problem with this PR, and it's great to hear that you've measured performance improvements.
+
+>>>addaleax, Owner
+
+CI: https://ci.nodejs.org/job/node-test-commit/9370/
+
+>>>Daniel15, Other
+
+;##D70 Are there guidelines for what should go in util module and what not?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Are there any guidelines for what should go in the util module vs what should go elsewhere? it seems like there's a whole bunch of random stuff in util. I wonder whether it's worth making a separate cohesive module for async-related utilities (like promise-util or async-util or something).
+
+>>>benjamingr, Member
+
+@Daniel15 the discussion about the actual feature in the language is at nodejs/CTC#12 - this thread is for the PR changes themselves.
+
+>>>Daniel15, 👍
+            1
+
+Thanks @benjamingr, I'll cross-post there.
+
+>>>Thread start
+
+>>>not-an-aardvark, Member
+
+;##D71 THe implcit behaviour is confusing
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEu
+
+I think the implicit behavior switch here might be confusing. Bluebird originally had this behavior in its promisify function, but it was changed later in a major release because it caused compatibility issues when an additional argument was added to a callback. The 3.0 promisify function has an explicit option for converting to an array.
+
+;##D72 It would be better to always use the first bvalue in the cb
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D71
+;##SEN NEU
+
+I think it would be better to always use the first value in the callback (possibly with an opt-in for returning an array, like Bluebird has) rather than sometimes returning an array and sometimes returning a single value.
+
+>>>SimenB, edited
+
+;##D73 It would be better to always use the first bvalue in the cb
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D71
+;##SEN NEU
+
+I think it would be better to always use the first value in the callback (possibly with an opt-in for returning an array, like Bluebird has) rather than sometimes returning an array and sometimes returning a single value.
+
+This makes sense. If nothing else, with the current implementation, every callback-function deciding to resolve with an extra argument is a breaking change for everybody who's promisified that function, which I'd guess would get into a lot of minor updates and not a major.
+
+FWIW, I came across a discussion on this sort of thing on the google cloud project: GoogleCloudPlatform/google-cloud-node#2167 (comment)
+
+EDIT: I should read better, my exact argument was highlighted already...
+
+>>>benjamingr, Member
+
+@not-an-aardvark I don't feel strongly about it and to be honest I'm not that sure why it was changed (see the discussion in the thread you linked to). I don't think any of us felt strongly about it then and I don't think we do now.
+
+Maybe @petkaantonov @phpnode or @spion would like to weigh in?
+
+>>>addaleax, Owner
+
+@not-an-aardvark Updated with that extra argument handling removed. You make a good point about minor vs major updates, and the util.promisify.custom logic is there to allow users to address edge cases like these themselves anyway.
+
+>>>Thread end
+
+>>>addaleax, Owner
+
+Rebased and squashed, fresh CI: https://ci.nodejs.org/job/node-test-commit/9461/
+
+@nodejs/ctc: As @jasnell pointed out, it would make sense to include this in the RCs for Node 8 if it should land, so we may need to vote on this.
+
+>>>jasnell, Owner
+
+@misterdjules ... how firm is your -1 on this. For the sake of the other @nodejs/ctc members who may not have the time to read the entire thread, can you summarize your position on this (or link to one of your comments that you feel gives the best summary of your position).
+
+>>>misterdjules, Contributor
+
+@jasnell A summary of my current position could be (my apologies for the wall of text):
+
+;##D74 THe proposed API would break the use case fo post-mortem deubgging
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+With the changes in this PR, it seems that the node platform commits to supporting a promises based API*. However, this API would break the use case of post-mortem debugging users who rely on errors thrown making node processes abort synchronously and dump core, unless they're explicitly caught.
+
+Some of us have tried to explore solutions to this problem that do not require changes to the design of promises, and so far I don't think anyone succeeded.
+
+But it seems there's more exploration we can do. I think a good example of a similar situation is the changes that were submitted to have domain better support promises.
+
+When that work started, it wasn't clear for everyone why this was worth doing, maybe because of the perception that nobody uses domains since they've been deprecated. But users don't necessarily have the choice, the ability, or the resources to update their code to adapt to an ever changing platform.
+
+It seems at the end everyone had a better understanding of the use case, the problem and even learned a few things about how promises interact with domains. Now we have a better story to tell our users of domains, who will be able to use Promises in a way that is more compatible with them.
+
+;##D75 We should spend more time exploring more potential solutions
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D74
+;##SEN NEU
+
+So I would like to see something similar done with post-mortem debugging: spending more time exploring potential solutions, including those that could require a spec change (even if just to determine that a spec change is impossible), before committing to this API.
+
+The outcome could be, on one end of the spectrum, that there is no solution to provide the guarantees that post-mortem debugging users need when they run code that uses these APIs based on Promises.
+
+On the other end of the spectrum, even if that may seem really optimistic and a bit naive, we might find a solution that suits the need of all our users.
+
+At worst we'll have a better understanding of the problem, we'll be able to communicate it better, and we will have shown our users that we care about them, even if their use case is not the most popular. It seems that would make whatever decision we make much easier to support.
+
+Without doing that additional work before committing to this API, it seems we'd leave some of our users, including some of our most prominent users, with the impression that we haven't done as much research as we could have done to guarantee that the part of the platform we control works consistently for them. In my opinion that could be interpreted as a strong message that they should start to look elsewhere for a platform that aligns better with their needs.
+
+As a result I'm currently still -1 on this PR.
+
+* Some will disagree with that statement: I think exposing a function that creates other functions exposes those functions as a public, committed API. Others think that it provides a way to opt into this API, and doesn't commit to anything.
+
+>>>jasnell, Owner
+
+@misterdjules ... thank you very much. That's exactly what I was hoping for. Let me ask one more question: is there some set of actions that could be taken to switch your position to +1 on this?
+
+>>>Fishrock123, Owner
+
+Going to try to give this a full read though monday or tuesday... 🤞
+
+(Assigning so I remember it!)
+
+>>>Thread start
+
+>>>thefourtheye, Contributor
+
+Nit: Should we use internal/errors? We have an error defined for this.
+
+>>>addaleax, Owner
+
+@thefourtheye sure, done
+
+>>>Thread end
+
+>>>ChALkeR, Owner
+
+@addaleax, one of the commits here (util: add util.promisify()) is saying that it fixes nodejs/CTC#12, but that issue describes two methods (under the same name, though) — one doing what this PR does, and one doing something similar to promisifyAll:
+
+If this method is passed an object, the method returns an object with the same method names -each of the methods returns an awaitable value (promise) instead of taking a callback.
+
+While I don't think that it's worth implementing that in this PR right now and delaying this, but I also don't think that this PR should close nodejs/CTC#12. /cc @benjamingr as the original issue author, though — perhaps I am being wrong here.
+
+>>>misterdjules, Contributor
+
+@jasnell
+
+is there some set of actions that could be taken to switch your position to +1 on this?
+
+The crux of the problem for me is more that I'm not convinced that we have a shared understanding of the impact of this PR.
+
+So it's not necessarily that a specific set of actions would bring me to be in favor of merging this PR, but more that it's currently not possible for me, given what data has been presented so far, to be confident that this is a needed addition to core.
+
+Leaving post-mortem debugging issues aside for a moment, it seems from nodejs/CTC#12 (comment) that the motivation for this PR is to allow a promises based API to perform better than userland alternatives.
+
+;##D76 Are we sure that this approach achieves the goal?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+However, I don't think I've seen any benchmarks results mentioned in that issue or this PR that measure the impact of these changes compared to other solutions. How would one know whether this PR actually achieves the goal set by that issue, and whether it justifies the cost of adding this in core?
+
+>>>addaleax, Owner
+
+it seems from nodejs/CTC#12 (comment) that the motivation for this PR is to allow a promises based API to perform better than userland alternatives.
+
+Fwiw, it’s nice that it seems to perform good according to @benjamingr’s comments, and it’s nice that it allows core to provide better (and likely faster) promisified implementations of methods than userland, but for me this is more about the feature itself than about its performance.
+
+@ChALkeR Lpetting @benjamingr make that call sounds good to me. I have no problem changing the Fixes: tag, or letting anybody re-open that issue if this closes it and they want to.
+
+>>>benjamingr, Member
+
+;##D77 It would make sense to push promisify only for function taking a function for now
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@ChALkeR thanks for bringing it up. I'm in favor of this PR only supporting promisify that takes a function rather than an object (like @addaleax's original PR contained) since it narrows the scope of the PR while keeping the core functionality.
+
+;##D78 We might be unwaware of edge cases
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D77
+;##SEN NEU
+
+I think we might have edge cases we're unaware of when promisifying whole objects - and I think proceeding with just the function variant, letting it sit for a while and then proceeding based on how people use it is the best path forward
+
+>>>jasnell, Owner
+
+@misterdjules ... thank you again. Ok, I think that clarifies  your position perfectly.
+
+;##D79 We could send promisify forward in experimental with a warning
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@addaleax and @misterdjules ... I'd like to propose a compromise approach that would at util.promisify() with Experimental status with an emitted process warning on first use, that would land in master but *notbe part of 8.0.0. It *could* land in an 8.x release after at least a month of sitting inmaster`. Before 8.x rolls over to LTS, the CTC would make a decision about whether to keep the API as experimental in 8.x LTS or remove it.
+
+The idea here is to give us time to exercise this code in a limited way in the ecosystem. See if it does what it is supposed to do, chase down any issues that actually do exist, or determine for certain whether the issues we suspect exist actually do or are worthwhile worrying about, etc.
+
+>>>ljharb, Other
+
+If it's experimental and thus could be removed at any time, do you think the ecosystem will be able to actually fully exercise it?
+
+>>>addaleax, Owner
+
+@jasnell I know we talked about this in person, but I still don’t think that’s really a good compromise.
+
+To me (and obviously to @misterdjules as well, just from a different perspective) the decision to make here is about Promise support in Node core, not this particular feature, and I don’t think experimental status would change that.
+
+(Also, I think the small API surface size here makes experimental status a lot less meaningful than for e.g. N-API from a technical point of view.)
+
+edit: as @benjamingr words it better below, this is not about Promise support but rather about how core APIs interoperate with Promises.
+
+>>>benjamingr, Member
+
+@misterdjules
+
+How would one know whether this PR actually achieves the goal set by that issue, and whether it justifies the cost of adding this in core?
+
+Good question!
+
+Quoting @littledan (working on V8):
+
+However, the benefit that built-in promisify gave was huge. On top of not allocating closures, as @addaleax 's patch already does, avoiding C++/JS transitions has been important in making Promises fast. V8 extras may be a faster way to optimize promisify than using the V8 API since it avoids a JS/C++ transition; if extras are only available to Core, that could give a good reason to put promisify in Core.
+
+I've measured this PR by changing lifter in fakesP to util.promisify which leaves the benchmark the same but uses the core method instead of probably the fastest possible variant of promisify available in userland.
+
+With util.promisify:
+
+Withoug util.promisify:
+
+Computer:
+
+>>>ChALkeR, Owner
+
+@ljharb @jasnell It being experimental means that it shouldn't land on any release branch without being hidden behind an opt-in flag. Else there would be problems with the ecosystem compatibility.
+
+That said, the issue @misterdjules mentioned is the lack of benchmarks that prove that this is in fact useful when compared to userland implementation.
+
+@addaleax @benjamingr Are there any benchmarks available?
+
+Upd: it looks like I was slow here, the benchmarks are already above. ;-)
+
+>>>benjamingr, Member
+
+@ChALkeR just added.
+
+@addaleax, I'd like to disagree that this adds support for promises to core. Support for promises was added when the global Promise was exposed, there is already code in core to deal with promise support and promises (such as running the microtasks).
+
+This PR (in my opinion) just improves the way core interops with async/await and the language for users without touching on the surface API itself or introducing any sort of promise endorsement or promise API.
+
+>>>Fishrock123, Owner
+
+"Support" and "Functionality" are not the same thing, fwiw.
+
+>>>benjamingr, Member
+
+On the other hand, I'm seeing some OOM errors in the parallel benchmark @addaleax. I think it's worth investigating. In order to reproduce:
+
+clone bluebird: git clone https://github.com/petkaantonov/bluebird
+
+cd bluebird
+
+npm i
+
+./bench parallel NODE_BINARY_PATH_FOR_PR
+
+Next to use util.promisify, go to ./benchmark/lib/fakesP and change:
+
+To:
+
+>>>jasnell, Owner
+
+@addaleax ... ok, yeah I figured as much but wanted to at least try again (it never hurts to ask).
+
+@addalex and @misterdjules ... how do you want to proceed on this? Given the inability to come to a consensus, there are two options: we either (1) Don't do anything for now and or (2) Call a CTC vote. (The question is largely for @addaleax ...)
+
+>>>benjamingr, Member
+
+@jasnell I think we're still at the point we're making progress. @misterdjules has made reasonable requests (to see benchmarks and performance rationale, which I just added).
+
+Since consensus has not yet been reached, I think we should at least continue to pursue it for a little while longer until everything but the post-mortem concerns (mostly because this doesn't expand the API IMO) are addressed.
+
+I think a CTC vote is a good idea if/when we stop making progress. I think a few more days would for community discussion would be nice here given we've been waiting for this for over a year anyway.
+
+>>>jasnell, Owner
+
+Ok. I'm good with that. I'm just looking at the timeline for 8.0.0. If this is going to make it, it would ideally land within the next week. Otherwise it'll get pushed out.
+
+>>>addaleax, Owner
+
+@benjamingr sorry, I couldn’t reproduce any trouble that way…
+
+@jasnell Yeah, a CTC vote this week was what I had in mind, that’s why I’ve put it on the agenda.
+
+>>>MylesBorins, Owner
+
+@ljharb @jasnell It being experimental means that it shouldn't land on any release branch without being hidden behind an opt-in flag. Else there would be problems with the ecosystem compatibility.
+
+@ChALkeR fwiw that is not how we handled the experimental URL api, or any other experimental API in the past afaik
+
+>>>addaleax, Owner
+
+@MylesBorins just icymi, there’s a bit of discussion around that happening in #12723 :)
+
+>>>benjamingr, Member
+
+Hey, given no discussion in the last 3 days - can we bring this to a CTC vote?
+
+>>>addaleax, Owner
+
+I agree. @nodejs/ctc I’m calling for a vote on whether to accept this PR (barring minor adjustments for review comments, if there are any). I’ve pre-filled some of the entries based on approving this PR or voicing formal objection (See #12442 (comment) for @misterdjules’ good explanation of why he is opposed).
+
+In favour: @addaleax @jasnell @evanlucas @targos @MylesBorins @ChALkeR @thefourtheye @ofrobots @fhinkel
+Against: @misterdjules
+Abstain: @mscdex @Trott @cjihrig @indutny
+Not voted yet: @bnoordhuis @Fishrock123 @mhdawson @rvagg @shigeki @trevnorris
+
+(please feel free to edit this comment for the vote, and conversely please only edit this comment if you’re a CTC member)
+
+>>>benjamingr, Member
+
+Adding some context about the work here and concerns raised and handled for the CTC:
+
+Some collaborators were concerned about cancellation in the API, it was removed.
+
+Some collaborators were concerned about API examples, these were added.
+
+Some collaborators were concerned about the object variant and behavior, it was decided to start with the function one only and figure out if a bigger API is needed later.
+
+Some collaborators were concerned with "why in core", V8 engineers posted detailed responses on why this needs to be in core, and the benchmark suite the most popular promise library (and V8 itself) uses demonstrates this PR gives a significant performance boost over userland implementation.
+
+Some collaborators were concerned not adding full support. Use cases were provided where this support is required from the platform that remain even with a promise returning core in the future. In addition, actual support for promises in core APIs is blocked on post-mortem concerns at the moment.
+
+Some collaborators brought post-mortem concerns, these were discussed and are still debated. In my opinion this PR does not make promise support any better or worse. On the other hand @addaleax added support for domains with promises to alleviate some concerns about promises and tooling.
+
+Some collaborators brought up style nits in the PR, these were addressed.
+
+Some discussion was had about the symbol exposed.
+
+Also see nodejs/CTC#12 for the nodejs/CTC issue, as well as 19 issues in the repo over the years https://github.com/nodejs/node/search?p=2&q=promisify&type=Issues&utf8=%E2%9C%93 , the issues in the original archive repo, and https://github.com/nodejs/promises  nodejs/promises#5
+
+>>>ChALkeR, Owner
+
+@MylesBorins
+
+@ChALkeR fwiw that is not how we handled the experimental URL api, or any other experimental API in the past afaik
+
+That's how it's documented atm. See #11362, btw.
+
+#12723 aims to change the documented definition of Experimental, but if this is going to be labelled as experimental and not be behind a flag, then #12723 should ideally land first (read as: this PR should have been blocked by #12723, if that was the case).
+
+It doesn't look like this is labelled as Experimental, though, so that's not an issue here :-).
+
+>>>benjamingr, Member
+
+@ChALkeR correct, the suggestion was redracted and @addaleax called for a CTC vote #12442 (comment)
+
+(I agree with the point about experimental though)
+
+>>>ChALkeR, Owner
+
+@benjamingr Thanks, I missed that. I recorded my vote just now. That should not be treated as a review, though =).
+
+>>>benjamingr, Member
+
+Pinging @nodejs/ctc since we're still missing 8 votes on #12442 (comment) and some time has passed.
+
+Note at this point it is enough for one person to support or 2 to abstain to pass this.
+
+>>>indutny, Owner
+
+I abstain from the vote.
+
+>>>ChALkeR, Owner
+
+@misterdjules Could you post an update, please?
+
+Re: post-mortem issues:
+
+I personally don't think that this will significantly impact the usage of promises in the ecosystem — those are already there and already widely used. Btw, we got async/await support already (not in the core API, though). Many libraries out there are already providing Promise-based APIs.
+Or are your concerns related to the expectation that the next step is going to be to provide some Promise-based API support in the core?
+
+;##D80 Which usage patterns are being broken?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Could you elaborate which specific usage patterns are going to be broken?
+
+Re: other concerns:
+
+Leaving post-mortem debugging issues aside for a moment, it seems from nodejs/CTC#12 (comment) that the motivation for this PR is to allow a promises based API to perform better than userland alternatives.
+
+;##D81 Are we sure that this approach achieves the goal?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+However, I don't think I've seen any benchmarks results mentioned in that issue or this PR that measure the impact of these changes compared to other solutions. How would one know whether this PR actually achieves the goal set by that issue, and whether it justifies the cost of adding this in core?
+
+;##D82 It has been demonstrated that this works better
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D81
+;##SEN NEU
+
+I believe that was already answered in #12442 (comment) and below and it was demonstrated that this approach performs better than the fastest known userland alternative (in bluebird, which is a quite complex one with all its evals and other magic), and that also makes it significantly better than the simple means of promisifying often done in userland outside bluebird.
+
+>>>ChALkeR, Owner
+
+On the vote side, we have 1 more in favour or 1 more abstaining vote missing in order to come to a resolution.
+
+That said, I would rather prefer if we could resolve the concerns than resolving this with a vote, if possible.
+
+>>>benjamingr, Member
+
+We tried resolving the concerns and addressing them for a while for several days before calling for a vote.
+
+I would also prefer a consensus resolution - it's been a while already :)
+
+I think if we wait for @Fishrock123 to show up we'll have that last +1 since he's been a supporter and reviewer of this PR as well as a great help and contributor to having promises work in Node correctly.
+
+>>>addaleax, Owner
+
+I would also prefer a consensus resolution - it's been a while already :)
+
+I think that “while” has been since at least the #5020 days, if we’re being honest. :/ Obviously, I’d prefer a consensus-based solution, too, I just don’t see that as realistic in the foreseeable future.
+
+(edit: also, I’ll rebase this tomorrow, the conflicts should only be with #12726, I think)
+
+>>>fhinkel, Owner
+
+Voting in favor
+
+>>>benjamingr, Member
+
+@addaleax we can land this! 🎉 🎉 🎉 🎉 🎉 🎉
+
+>>>addaleax, Owner
+
+Landed in f72376d...faf6654
+
+Thanks everyone for the reviews and support!
+
+>>>benjamingr, Member
+
+@addaleax going to give a small talk about this journey on Thursday, starting in nodejs/node-v0.x-archive#7642
+
+Thanks a ton for taking up the glove and working together on the conceptual side, while undertaking the vast majority of the technical burden. Props for the execution and delivery, and thank you :)
+
+>>>thefourtheye, Contributor
+
+@MadaraUchiha You were right! This PR is @benjamingr's birthday present 😉
+

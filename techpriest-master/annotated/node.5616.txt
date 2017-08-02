@@ -1,0 +1,2398 @@
+>>>jasnell, Owner
+
+
+Pull Request check-list
+
+
+Please make sure to review and check all of these items:
+
+
+
+
+Does make -j8 test (UNIX) or vcbuild test nosign (Windows) pass with
+this change (including linting)?
+
+
+Is the commit message formatted according to [CONTRIBUTING.md][0]?
+
+
+If this change fixes a bug (or a performance problem), is a regression
+test (or a benchmark) included?
+
+
+Is a documentation update included (if this change modifies
+existing APIs, or introduces new ones)?
+
+
+
+
+Affected core subsystem(s)
+
+
+fs (/cc @trevnorris @bnoordhuis )
+
+
+Description of change
+
+
+Updated: Reworked the implementation based on @trevnorris feedback. This now does several things:
+
+
+
+
+Buffer accepted as Path on all fs methods that accept a Path
+
+
+{encoding: '...'} option accepted on fs.readdir, fs.readdirSync, fs.readlink, fs.readlinkSync, and fs.watch
+
+
+Documentation updates
+
+
+
+
+Fixes: #2088
+Ref: #3519
+See Also: #3401
+
+
+>>>jasnell, Owner
+
+
+CI: https://ci.nodejs.org/job/node-test-pull-request/1884/
+
+
+>>>jasnell, Owner
+
+
+Sigh... CI is red all over. Suspected as much. I'll fix up the test case. Definitely not ready to land yet.
+
+
+>>>silverwind, Contributor
+
+
+
+;##D1 We should be listing the possible values for the encoding option
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'd list the possible values, or link to some other place that has them.
+
+
+>>>seishun, Member
+
+
+
+;##D2 Why is fs.watch being singliged out?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+;##D3 The option should be added to every fs function or none
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+Why are you singling out fs.watch? Either add this option to every fs function, or don't add it anywhere.
+
+
+>>>bnoordhuis, Owner
+
+
+I agree with @seishun.  I think it should work like this:
+
+
+
+
+
+;##D4 Functions should accept buffers if they take path strings
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D3
+;##SEN NEU
+
+Functions that take path strings should also accept buffers.  Examples: fs.open, fs.stat.
+
+
+
+;##D5 Function should accept an encoding if they produce path strings
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D3
+;##SEN NEU
+
+Functions that produce path strings should accept an encoding (and encoding='buffer' should produce buffers).  Examples: fs.watch, fs.readdir.
+
+
+
+
+
+;##D6 This could be simulated using .toString('binary')
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D4
+;##SEN NEU
+
+Point 1 can be simulated using path = Buffer(path, encoding).toString('binary') so it's not strictly necessary.
+
+
+>>>jasnell, Owner
+
+
+New CI: https://ci.nodejs.org/job/node-test-pull-request/1889/
+
+
+@seishun @bnoordhuis ... actually I've already starting looking at the expanded set. I definitely agree that we need to address them all but I'd like to separate it out across multiple PRs... or at least multiple commits within this PR.
+
+
+>>>jasnell, Owner
+
+
+
+;##D7 If path is passed as a buffer wouldn't it awlays use .toString('binary')?
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL REFR D6
+;##SEN NEU
+
+@bnoordhuis ... on point 1... if path is passed as a Buffer then it would always be buf.toString('binary') internally?
+
+
+
+
+
+;##D8 Is the encodinng to toString os-dependent?
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D7
+;##SEN NEU
+
+Or is the encoding passed to toString() going to be dependent on OS platform?
+
+
+>>>jasnell, Owner
+
+
+@bnoordhuis @seishun ... ok, PTAL. Started moving this in the direction of rounding out the Buffer support for all of fs... still in a work in progress.
+
+
+>>>seishun, Member
+
+
+I'm still curious to know what actual real-world problem this solves that #3401 doesn't.
+
+
+>>>jasnell, Owner
+
+
+
+;##D9 This approach, even if more complicate, is more flexible
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@seishun ... as I understand it, #3401 assumes that the filenames are always utf8 which is not always the case. This approach, while a bit more complicated, provides quite a bit more flexibility and does not change the current default behavior the way #3401 would. Either way, I think I can live with either approach. I implemented this because the issue has been fairly long standing and an alternative fix hasn't yet landed.
+
+
+>>>jasnell, Owner
+
+
+
+;##D10 It is important ot allow devs to specify encoding
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+One other point... even if we land #3401, there is still value, I think, in allowing a dev to specify which encoding they want the filename to be in at the API level.
+
+
+>>>seishun, Member
+
+
+
+
+which is not always the case
+
+
+
+
+Is there evidence that this has ever not been the case for any Node.js user?
+
+
+
+
+and does not change the current default behavior the way #3401 would
+
+
+
+
+
+;##D11 Default behavior should change for consistency
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D10
+;##SEN NEU
+
+The default would need to change anyway, since currently fs.watch is inexplicably inconsistent with other fs functions.
+
+
+>>>jasnell, Owner
+
+
+
+
+Is there evidence that this has ever not been the case for any Node.js user?
+
+
+
+
+Yes. See nodejs/node-v0.x-archive#2387 for example
+
+
+>>>jasnell, Owner
+
+
+
+;##D12 It woudl be better to have readdir and watch not perform encoding
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+;##D13 That would allow to have utf8 as default with an option to override
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D12
+;##SEN NEU
+
+What would likely be an even better fix would be to have readdir and watch not perform any decoding on the filename at all and instead have it return the filename as Buffer instances. Then in the fs code we can toString() as utf8 by default but allow the encoding option to override.
+
+
+>>>bjouhier, Contributor
+
+
+
+;##D14 It's strang eto expose filenames as buffers
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+It feels strange to expose filenames as buffers through the fs API.
+
+
+
+;##D15 Filenams should only be strings
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D14
+;##SEN NEU
+;##D16 Incorrect filenames should be fixed at fs or lower level
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D15
+;##SEN NEU
+
+Conceptually, filenames are strings and code which uses the fs API should only see strings. If filenames are incorrectly decoded by specific calls (fs.watch), the problem should be fixed at the fs level or below, it should not surface above.
+
+
+
+;##D17 If those layers can't, why would an higher oen do better?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D16
+;##SEN NEU
+
+Of course, this assumes that the fs layer can determine the encoding that the system is using. But if it cannot do it, why would the higher layers know better?
+
+
+>>>jasnell, Owner
+
+
+
+;##D18 Not in every sysem filenames have encoding
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL REFR D17
+;##SEN NEU
+
+@bjouhier ... because on certain systems it's impossible to know for sure because filenames don't inherently have an encoding. They're just byte sequences. On such systems, the filenames aren't simply strings.
+
+
+>>>jasnell, Owner
+
+
+After talking it over with @trevnorris a bit, I'm going to back up and refactor this more. Will update when it's closer to being done!
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D19 Libuc can't make assumptions on filenames
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D16
+;##SEN NEU
+
+@bjouhier libuv can't make assumptions about the multi-byte-ness of the read filename. hence why:
+
+
+
+
+
+prints abÈ¢ instead of abȢ. meaning you'll have to do Buffer(filename, 'binary').toString() to get it back as expected anyway.
+
+
+>>>bjouhier, Contributor
+
+
+
+;##D20 Allowing apps to assume encodings might make a mess out of it
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D18
+;##SEN NEU
+
+@jasnell If filenames are just byte streams and the system does not impose their encoding then two applications that create files may assume different encodings. Then filenames created by app1 will look weird in app2, and vice versa. This is a mess and you need extra info (where?) to associate encodings with filenames.
+
+
+
+;##D21 Node should expose a buffer alternative for every fs call
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D3
+;##SEN NEU
+
+In OSX the encoding is imposed by the system (UTF8 encoding of unicode in fully decomposed form - which has its own problems BTW), so there is no ambiguity. Same story for Windows/NTFS (UTF16 pre-composed this time). Apparently the mess is on UNIX/Linux (I did not know it, just found out - http://unix.stackexchange.com/questions/39175/understanding-unix-file-name-encoding). Given that, yes, node should expose a buffer alternative, but for all fs calls, not just fs.watch.
+
+
+>>>seishun, Member
+
+
+
+
+Yes. See nodejs/node-v0.x-archive#2387 for example
+
+
+
+
+
+;##D22 It would be succificient to have a buffer/decode switch
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+It seems that user's filesystem is UTF-8 overall but has individual filenames encoded in a different encoding. I don't see how this PR would help them, unless they are going to use Buffers in all of fs API. In that case, I don't see any point in the encoding option - it's sufficient to just have a "Buffer/decode-UTF8" switch.
+
+
+
+
+because on certain systems it's impossible to know for sure because filenames don't inherently have an encoding. They're just byte sequences. On such systems, the filenames aren't simply strings.
+
+
+
+
+
+;##D23 That applies only on linux
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D18
+;##SEN NEU
+
+This is could be true only on Linux. On OS X, this API is completely useless, because filenames are guaranteed to be encoded in UTF-8. On Windows, it's effectively going to lie, because filenames are already decoded as UTF-16 and re-encoded as UTF-8 by libuv.
+
+
+
+;##D24 We shouldn't hadd api that are not cross-platfrom
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D23
+;##SEN NEU
+
+Node.js shouldn't add APIs that only work on a single platform.
+
+
+>>>trevnorris, Contributor
+
+
+
+
+On Windows, it's effectively going to lie, because filenames are already decoded as UTF-16 and re-encoded as UTF-8 by libuv.
+
+
+
+
+
+;##D25 libuv never makes assumptions about filenames
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D23
+;##SEN NEU
+
+This is not true. libuv never makes assumptions about a filename. It simply returns the bit stream it was handed by the OS. For example:
+
+
+
+
+
+Output:
+
+
+
+
+
+;##D26 The assumptionts are made by node
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D25
+;##SEN NEU
+
+It's node that makes an assumption in that particular API.
+
+
+>>>jasnell, Owner
+
+
+@trevnorris @bnoordhuis @seishun @nodejs/ctc ... Ok, just pushed a significantly reworked update on this based on conversations with @trevnorris around the implementation. PTAL. @seishun, the reworked version assumes a default encoding of UTF8 so in the most common case, if encoding is not specified, filenames come through as UTF8.
+
+
+>>>jasnell, Owner
+
+
+Changing to semver-major since this includes changes to the error handling and default encoding for fs.watch results.
+
+
+>>>jasnell, Owner
+
+
+New CI: https://ci.nodejs.org/job/node-test-pull-request/1897/
+
+
+>>>seishun, Member
+
+
+
+
+libuv never makes assumptions about a filename.
+
+
+
+
+
+;##D27 libuv does make assumptions on windows
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D25
+;##SEN NEU
+
+It does on Windows. See here, for example.
+
+
+>>>jasnell, Owner
+
+
+hmm... quite a bit of red in the CI. Couple of odd errors to investigate.
+
+
+>>>jasnell, Owner
+
+
+Well, there are a number of quite odd issues happening in linux... Still chasing those down.
+
+
+>>>jasnell, Owner
+
+
+Sigh... turns out the "odd issues" === "james' rusty C skills"... lol.
+
+
+>>>jasnell, Owner
+
+
+New CI: https://ci.nodejs.org/job/node-test-pull-request/1902/
+
+
+>>>trevnorris, Contributor
+
+
+@seishun Heh. Ah yes, Windows the special snowflake. Thanks for pointing out that code. I don't usually venture into src/win/.
+
+
+>>>jasnell, Owner
+
+
+CI is green although I did have to exclude the new test case from BSD because it's not compatible with the way fs.watch is implemented on that platform.
+
+
+>>>jasnell, Owner
+
+
+@nodejs/ctc ... PTAL!
+
+
+>>>bnoordhuis, Owner
+
+
+
+
+On OS X, this API is completely useless, because filenames are guaranteed to be encoded in UTF-8.
+
+
+
+
+
+;##D28 On non-hfs+ fs the filesystem would use any encoding apllicable
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D23
+;##SEN
+
+On a HFS+ mount.  Other file systems will use whatever encoding is applicable (think FAT32 on a USB stick.)
+
+
+>>>bnoordhuis, Owner
+
+
+{Boolean}, {Boolean} and {String}.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D28 THe check should be revisited to work correctly in a null case
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'd write it as options = options || {}, an explicit typeof check will do the wrong thing when options === null.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D29 Wouldn't that also do the wrong thing if options is truthy
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL REFR D28
+;##SEN NEU
+
+In that case this should be attached as an else if to the above, but also if options is truthy wouldn't that also do the wrong thing? Or, guess since "everything's an object" means as long as the encoding property's defined then we shouldn't care. okay. that solution is cool.
+
+
+>>>bnoordhuis, Owner
+
+
+Unrelated change.
+
+
+>>>jasnell, Owner
+
+
+Well, it's unrelated to the Buffer / encoding change but given that the current error message is fairly useless when filename is not returned, it certainly seems worthwhile since I've got my hands in this code anyway.
+
+
+>>>trevnorris, Contributor
+
+
+maybe just break it out into its own commit? May be small, but in case one needs to be rolled back for some unknown reason it won't affect the other.
+
+
+>>>jasnell, Owner
+
+
+this has been broken out into a separate commit along with many of the other non-directly related cleanups to fs.markdown that are included.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##30 Will this render an error watching buffer?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Just for my understanding, this will render as Error watching <Buffer ..> for changes: when encoding == 'buffer'?
+
+
+>>>bnoordhuis, Owner
+
+
+C++-style comments?
+
+
+>>>bnoordhuis, Owner
+
+
+UV__ECHARSET is internal-ish.
+
+
+>>>bnoordhuis, Owner
+
+
+Cache the result of strlen(filename).
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D31 THis has the chance of failing on some architectures
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN ENU
+
+Don't do this, it can fail on some architectures when filename is not aligned on a two-byte boundary.
+
+
+
+;##D32 It also violates strict aliasing
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELABD 31
+;##SEN NEU
+
+EDIT: Also, it violates strict aliasing, which is UB.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D33 How would we deal with user saying the filename is encoded in utf16le?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@bnoordhuis how would we deal with the case where user says the filename is encoded in utf16le?
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D34 Is there a need for a mutable deference operator?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is there a need for a mutable dereference operator?
+
+
+>>>bnoordhuis, Owner
+
+
+Blank line.
+
+
+>>>bnoordhuis, Owner
+
+
+It's kind of meh that this class duplicates much of node::Utf8Value...
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D35 Why use calloc if it gets overwritte immediately?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Why calloc when you're going to overwrite it immediately anyway?
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D36 It was an easy solution to null terminate the string
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D35
+;##SEN NEU
+
+think I had him do that. was being lazy with an example and called calloc instead of typing str_[n] = '\0';. since the string needs to be null-terminated.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D37 Why is this memory being freed?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@jasnell I don't see where this memory is being free()'d?
+
+
+>>>trevnorris, Contributor
+
+
+wait. nm. see it.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D38 Why is malloc/calloc being used instead of new char[]?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Just curious, why are you using malloc/calloc instead of new char[]?
+
+
+>>>jasnell, Owner
+
+;##D39 Because the code copies over the code from node:utf8value
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D38
+;##SEN NEU
+
+No reason other than the code for the Path class literally copies over and
+slightly modifies the code for node::Utf8Value, which uses malloc. I just
+did exactly what it was doing.
+On Mar 14, 2016 10:59 AM, "Ben Noordhuis" notifications@github.com wrote:
+
+
+
+
+In src/node_file.cc
+#5616 (comment):
+
+
+
+
+
+
+
+
+
+
+
+length_ = string->WriteUtf8(str_, len, 0, flags);
+
+
+str_[length_] = '\0';
+
+
+} else if (Buffer::HasInstance(value)) {
+
+
+size_t len = Buffer::Length(value) + 1;
+
+
+if (len > sizeof(str_st_)) {
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+memcpy(str_, Buffer::Data(value), len);
+
+
+length_ = len - 1;
+
+
+str_[length_] = '\0';
+
+
+} else {
+
+
+fail_ = true;
+
+
+}
++}
+
+
+
+
+
+
+Just curious, why are you using malloc/calloc instead of new char[]?
+
+
+—
+Reply to this email directly or view it on GitHub
+https://github.com/nodejs/node/pull/5616/files#r56045911.
+
+
+
+
+>>>bnoordhuis, Owner
+
+
+No camelCase.
+
+
+>>>bnoordhuis, Owner
+
+
+The .As<Value>() looks superfluous.
+
+
+>>>bnoordhuis, Owner
+
+
+Same issues I pointed out elsewhere.
+
+
+>>>bnoordhuis, Owner
+
+
+Don't use UV__ECHARSET.
+
+
+>>>jasnell, Owner
+
+;##D40 What error code would you recommend?
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is there a different error code you'd recommend?
+On Mar 14, 2016 11:01 AM, "Ben Noordhuis" notifications@github.com wrote:
+
+
+
+
+In src/node_file.cc
+#5616 (comment):
+
+
+
+
+@@ -201,8 +291,19 @@ static void After(uv_fs_t *req) {
+break;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Don't use UV__ECHARSET.
+
+
+—
+Reply to this email directly or view it on GitHub
+https://github.com/nodejs/node/pull/5616/files#r56046516.
+
+
+
+
+>>>bnoordhuis, Owner
+
+
+Ditto.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D41 Any reason why lib/fs.js can't be modified to have the binding always have the same number of arguments?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is there a reason you can't modify lib/fs.js so that the binding layer always gets called with the same number (and kinds) of arguments?
+
+
+>>>jasnell, Owner
+
+;##D42 No, to avoid potential breakage if someone uses the binding directly
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+;##D43 Could be changed if we don't care about that case
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D42
+;##SEN NEU
+
+Would prefer that but wanted to avoid potential breakage if someone was
+using the binding directly... Despite that not being supported. If we don't
+care about that potential breakage then I'm happy to make that change.
+On Mar 14, 2016 11:04 AM, "Ben Noordhuis" notifications@github.com wrote:
+
+
+
+
+In src/node_file.cc
+#5616 (comment):
+
+
+
+
+
+
+Path path(env->isolate(), args[0]);
+
+
+if (path.fail())
+
+
+return TYPE_ERROR("path must be a string or Buffer");
+
+
+
+
+
+
+
+
+
+
+
+
+
+enum encoding encoding = UTF8;
+
+
+Local callback = Null(env->isolate());
+
+
+if (args.Length() == 2) {
+
+
+if (args[1]->IsObject()) {
+
+
+
+
+
+
+
+} else if (args[1]->IsString()) {
+
+
+
+
+
+
+
+}
+
+
+} else if (args.Length() == 3) {
+
+
+callback = args[2];
+
+
+encoding = ParseEncoding(env->isolate(), args[1], UTF8);
+
+
+}
+
+
+
+
+
+
+Is there a reason you can't modify lib/fs.js so that the binding layer
+always gets called with the same number (and kinds) of arguments?
+
+
+—
+Reply to this email directly or view it on GitHub
+https://github.com/nodejs/node/pull/5616/files#r56047004.
+
+
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D44 We can do it since we never guarantee that th eprocess won't abort in that case
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D43
+;##SEN NEU
+
+We've never guaranteed that the process won't abort if using process.binding directly. I'd say make it consistent in JS and add CHECK's here.
+
+
+>>>jasnell, Owner
+
+
++1 will do this in the next round of edits
+
+
+>>>bnoordhuis, Owner
+
+
+Likewise.
+
+
+>>>bnoordhuis, Owner
+
+
+Maybe (err) => { if (err) throw err; }?
+
+
+>>>trevnorris, Contributor
+
+
+ditto hear as discussed in readdir.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D45 Did you mean to use != UCSE2?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Don't you mean != UCS2? Because if encoding_ == UCS2 then should be making the call to StringBytes::Encode() where a uint16_t* is required. Which happens in the following else.
+
+
+>>>trevnorris, Contributor
+
+
+wait. nm. didn't see it properly broken w/ line comments. I see what's happening.
+
+
+>>>jasnell, Owner
+
+
+@trevnorris @bnoordhuis ... updated! PTAL!
+
+
+>>>jasnell, Owner
+
+
+
+;##D46 Is not clear what to change the UV__ECHARSET to
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@bnoordhuis ... I did not change the use of UV__ECHARSET set because I'm not quite sure what to change it to.
+
+
+>>>ronkorving, Contributor
+
+
+
+;##D47 How can a user predict if it will be a stirng or a buffer?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+In the case of these events, how can I as a user predict whether it will be a string or Buffer?
+
+
+>>>jasnell, Owner
+
+;##D48 It's a buffer only if the fs.watch is called with encoding set to buffer
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D47
+;##SEN NEU
+
+It will only be a buffer if fs.watch is called with the encoding option
+set to 'buffer'
+On Mar 17, 2016 8:53 PM, "Ron Korving" notifications@github.com wrote:
+
+
+
+
+In doc/api/fs.markdown
+#5616 (comment):
+
+
+
+
+@@ -101,7 +101,7 @@ Objects returned from fs.watch() are of this type.
+
+
+Event: 'change'
+
+
+
+
+event {String} The type of fs change
+-* filename {String} The filename that changed (if relevant/available)
++* filename {String | Buffer} The filename that changed (if relevant/available)
+
+
+
+
+
+
+In the case of these events, how can I as a user predict whether it will
+be a string or Buffer?
+
+
+—
+You are receiving this because you were mentioned.
+Reply to this email directly or view it on GitHub
+https://github.com/nodejs/node/pull/5616/files/9d5fe80af91605b9cb126abb0d8238749933f555#r56610752
+
+
+
+
+>>>ronkorving, Contributor
+
+
+I hope that's clear enough (but it wasn't to me tbh)
+
+
+>>>jasnell, Owner
+
+
+I can clarify it further :-)
+
+
+>>>ronkorving, Contributor
+
+
+This is great, thanks :)
+
+
+>>>ronkorving, Contributor
+
+
+
+;##D49 How is the type predictable by the user?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+;##D50 Does it requires tests at every use?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D49
+;##SEN NEU
+
+How can I predict this as a user? Do I need to add tests everywhere I want to use this property?
+
+
+>>>jasnell, Owner
+
+
+
+;##D51 It depends on what is passed to create{read/write}stream
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D49
+;##SEN NEU
+
+It's based on what you pass in to createReadStream/createWriteStream. If you pass a string, it'll be a string. If you pass a buffer it'll be a buffer.
+
+
+>>>seishun, Member
+
+
+@bnoordhuis
+
+
+
+
+On a HFS+ mount. Other file systems will use whatever encoding is applicable (think FAT32 on a USB stick.)
+
+
+
+
+
+;##D52 other fs should work with no issues on FAT32
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D28
+;##SEN NEU
+
+This is not true. fs.readdirSync has absolutely no issues with files on a FAT32 USB stick with non-ASCII names created on either Windows or OS X. Presumably filenames are transparently converted to UTF-8 by the filesystem driver.
+
+
+>>>bnoordhuis, Owner
+
+
+Okay, NFS then.
+
+
+(The FAT32 driver seems to be closed source so I can't verify if or when it transcodes, but on my MBA, it clearly doesn't handle all filenames.)
+
+
+>>>seishun, Member
+
+
+
+
+Okay, NFS then.
+
+
+
+
+
+;##D53 This might lead to problems if someone uses a non-UTF-8 NFS
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D52
+;##SEN NEU
+
+This seems very artificial. If someone uses a non-UTF-8 NFS and the driver doesn't convert the filenames, they won't even be able to properly use the terminal, not to mention any other programs that assume UTF-8.
+
+
+
+;##D54 If we make an API only for linux, we should add an API for windows too
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D53
+;##SEN NEU
+
+If we're going to add an API that only works on Linux (and OS X if you try hard enough), we should add an API that changes the "hidden file" attribute on Windows by the same token.
+
+
+>>>jasnell, Owner
+
+
+@bnoordhuis ... changed the code to use UV__EINVAL instead of UV__ECHARSET.
+@ronkorving ... updated the docs to clarify those few issues
+Squashed and rebased on master. PTAL
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D55 Assuming that linux uses utf8 is wrong
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D52
+;##SEN NEU
+
+@seishun This presumption that Linux uses utf8 just isn't correct. Most applications default to interpret the byte sequence as utf8, but Linux makes no presumption about how to interpret the input. The application that does that.
+
+
+For example, if I switch my bash terminal to use ISO-8859-1 instead of UTF8 then do:
+
+
+
+
+But then if I switch my terminal back to utf8 encoding and run node:
+
+
+
+
+Here the filename was input as a valid ISO-8859-1 string, node decided to interpret it as UTF8. If I wanted to view the same characters that my previous terminal displayed it would be necessary to do Buffer(filename).toString('binary').
+
+
+You even pointed out that on windows libuv uses a utf16/utf8 converter because windows files aren't stored or returned as a utf8 byte-sequence. This may have been done originally for legacy compatibility (@piscisaureus probably knows more) so that when reading files from windows users didn't need to do Buffer(filename, 'utf16le').toString() every time.
+
+
+
+;##D56 Libuv seems to have an inconsistency
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D55
+;##SEN NEU
+;##D57 Allowing users to retriew raw byte sequences can be useful for dealing with that
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELABD D56
+;##SEN NEU
+
+This concludes that libuv has an inconsistency in how system-returned filename byte-sequences are handled before passed on to the user, and that we cannot presume the byte-sequence is always utf8 encoded. Thus, allowing users the ability to retrieve the raw byte sequence is useful. If node desires to presume that all filenames will be encoded as utf8 then the issue should be brought up with libuv. So it can be enforced prior to node receiving the filename.
+
+
+
+
+If we're going to add an API that only works on Linux (and OS X if you try hard enough), we should add an API that changes the "hidden file" attribute on Windows by the same token.
+
+
+
+
+
+;##D58 The exception is not being made only for linux, it already exists for windows
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D54
+;##SEN NEU
+
+This presumes that an API exception is being made specifically for Linux, when in fact the exception has been made for Windows already. Following this logic libuv would then need to return the raw byte-sequence retrieved from Windows the same way it's done on every other supported system.
+
+
+>>>jasnell, Owner
+
+
+
+;##D59 The change in this PR does not depend on the platform
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELABD 58
+;##SEN NEU
+
+It should also be noted that the changes being proposed here do not special case any particular platform.  They change how the filename data is worked with after it is returned by libuv and can be used on every platform.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D60 Is it possible that that line is different than 0?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+;##D61 We might need to memcpy the filename into uint16_t
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D60
+;##SEN NEU
+
+@bnoordhuis Is it possible that reinterpret_cast<uintptr_t>(filename) % sizeof(uint16_t) != 0? If it is then we'd have to memcpy the filename into a uint16_t* before passing it along.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D62 A .cc file should be able to use v8::Isolate instead of the prefix
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This is a .cc file. Should be able to use using v8::Isolate at the top and not need to use the namespace prefix.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D63 Check_NE is not necessary since malloc is not used
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+;##D64 new char would throw first if it can't allocate
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL GEN D63
+;##SEN NEU
+
+CHECK_NE is only necessary if using malloc() et al. If new char can't allocate it will throw.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D65 This shoudl use delete to maintain consistency with the change
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You switched to using new char below. So this should be switched to use delete str_.
+
+
+>>>trevnorris, Contributor
+
+
+@jasnell Finished next round of review.
+
+
+>>>seishun, Member
+
+
+
+
+This presumption that Linux uses utf8 just isn't correct.
+
+
+
+
+I never argued that it is.
+
+
+
+
+If I wanted to view the same characters that my previous terminal displayed it would be necessary to do Buffer(filename).toString('binary').
+
+
+
+
+This isn't exactly relevant, but FYI this wouldn't work, since decoding as UTF-8 is lossy if the byte sequence isn't valid UTF-8.
+
+
+
+
+You even pointed out that on windows libuv uses a utf16/utf8 converter because windows files aren't stored or returned as a utf8 byte-sequence. This may have been done originally for legacy compatibility (@piscisaureus probably knows more) so that when reading files from windows users didn't need to do Buffer(filename, 'utf16le').toString() every time.
+
+
+
+
+
+;##D66 libuv and node.js should not be conflated togheter
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D56
+;##SEN NEU
+
+You're conflating libuv and Node.js here. In libuv the conversion is presumably done for consistency because it assumes UTF-8 on Linux and OS X. Not doing the conversion would require the users of libuv to write platform-specific code when working with filenames, which would defeat the purpose of libuv (writing portable cross-platform code).
+
+
+
+
+If node desires to presume that all filenames will be encoded as utf8 then the issue should be brought up with libuv. So it can be enforced prior to node receiving the filename.
+
+
+
+
+If there is any issue with libuv, it's that it doesn't document the encoding of char * arguments in its API. Possibly because UTF-8 is implicitly assumed.
+
+
+
+
+Following this logic libuv would then need to return the raw byte-sequence retrieved from Windows the same way it's done on every other supported system.
+
+
+
+
+
+;##D67 The reason for the inconsistency is to abastrac platform differences
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D56
+;##SEN NEU
+;##D68 Libuv should just assume that the filesystem is utf-8 on linux/osx and utf-17 on windows
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D67
+;##SEN NEU
+
+The purpose of this "inconsistency" is to abstract away platform differences and accept/return filenames in the same encoding regardless of the filesystem encoding. IMO libuv should just document that it assumes the filesystem is UTF-8 on Linux and OS X and UTF-16 on Windows (because Windows API allows one to create a filename consisting of an invalid 16-bit code unit sequence, too), and anything else follows the "garbage in - garbage out" principle.
+
+
+>>>trevnorris, Contributor
+
+
+
+
+decoding as UTF-8 is lossy if the byte sequence isn't valid UTF-8.
+
+
+
+
+Ah yes. I forgot about 0da4c67 which replaces invalid UTF8. Though this also proves the point that it would be necessary to get the raw byte-sequence.
+
+
+
+
+You're conflating libuv and Node.js here. In libuv the conversion is presumably done for consistency because it assumes UTF-8 on Linux and OS X.
+
+
+
+
+
+;##D69 You are assuming that windows converts UTF8 only becaise libuv
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D66
+;##SEN NEU
+
+You're assumption is that Windows makes the UTF8 conversion because libuv assumes all other file encodings will be UTF8. My point is that the conversion may have been added (only a possibility, hence why I referenced @piscisaureus's opinion) with node in mind and the fact it auto converts filenames to UTF8, and that it has no bearing on libuv's assumption that all *nix are UTF8 encoded.
+
+
+
+
+Possibly because UTF-8 is implicitly assumed.
+
+
+
+
+
+;##D70 The assumptions on libuv reasons to asusme UTF8 is wrong and should be avoided
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D68
+;##SEN NEU
+
+Again you're making the assumption that libuv does assume UTF8 based on the fact that Windows converts from UTF16. This is not a solid assumption to make. Especially since libuv does not in fact loosy convert invalid UTF8 byte sequences on all *nix. Instead it passes the raw sequence and expects the user to interpret as desired.
+
+
+
+
+and accept/return filenames in the same encoding regardless of the filesystem encoding.
+
+
+
+
+
+;##D71 That is not possible to do
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This is impossible to do. If fstab has mounted the drive using iocharset=koi8r libuv does not have the means to determine how to interpret the incoming byte stream.
+
+
+
+
+IMO libuv should just document that it assumes the filesystem is UTF-8 on Linux and OS X and UTF-16 on Windows
+
+
+
+
+
+;##D72 libuv cannot use use non-utf8
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D71
+;##SEN NEU
+
+As you've already stated, UTF8 is loosy. Meaning any filesystem encodings that aren't UTF8 can't be used by libuv. This seems self defeating.
+
+
+>>>jasnell, Owner
+
+
+@trevnorris ... updated! commits split and reworked the ucs2 bits. PTAL
+
+
+>>>ronkorving, Contributor
+
+
+The encoding should be "buffer" all lowercase.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D73 Were we going to error here or default back?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Where we going to either error here or default back to UTF8? I feel like if the filename isn't dividable by 2 then we can assume the wrong file encoding was passed.
+
+
+>>>jasnell, Owner
+
+;##D74 We will fallback to utf8
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D73
+;##SEN NEU
+
+;##D75 This could case filenames to be returned as different types
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM  SOL
+;##REL ELAB D74
+;##SEN NEU
+
+I'm good with a fallback to utf8. But that could mean some of the filenames
+are returned as utf16le and others as utf8. That seems bad. I'm also good
+with a throw. Which is best?
+On Mar 18, 2016 11:20 PM, "Trevor Norris" notifications@github.com wrote:
+
+
+
+
+In src/fs_event_wrap.cc
+#5616 (comment):
+
+
+
+
+@@ -156,7 +160,36 @@ void FSEventWrap::OnEvent(uv_fs_event_t* handle, const char* filename,
+};
+
+
+if (filename != nullptr) {
+
+
+
+
+argv[2] = OneByteString(env->isolate(), filename);
+
+
+size_t len = strlen(filename);
+
+
+// If encoding is BUFFER, return a Buffer.
+
+
+// If encoding is UCS2, attempt to decode as UCS2 or report an error.
+
+
+// Otherwise, Encode as the requested type, with UTF8 as the fallback.
+
+
+if (wrap->encoding_ == BUFFER) {
+
+
+
+
+
+
+
+} else if (wrap->encoding_ == UCS2) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Where we going to either error here or default back to UTF8? I feel like
+if the filename isn't dividable by 2 then we can assume the wrong file
+encoding was passed.
+
+
+—
+You are receiving this because you were mentioned.
+Reply to this email directly or view it on GitHub
+https://github.com/nodejs/node/pull/5616/files/ea59f4e2203fd1db4cdd59db365d6f08e0874d89#r56744955
+
+
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D76 Raising an error might be a better idea
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D74
+;##SEN NEU
+
+I'd raise an error.  Silent fix-ups inevitably end in tears.
+
+
+>>>jasnell, Owner
+
+
++1 to an error
+
+
+>>>trevnorris, Contributor
+
+
+still have some namespacing left around.
+
+
+>>>trevnorris, Contributor
+
+
+alignment of by a space.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D77 Is it possible to combine the path constructor and this?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Also, is there any way the Path constructor and this can be combined into one?
+
+
+>>>bnoordhuis, Owner
+
+
+Agreed, this duplication is undesirable.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D78 It should be possible to test utf816le encoding using a buffer
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@jasnell Now that you can write out byte sequences, it should be possible to test 'utf816le' encoding writing out using a Buffer like so: Buffer('\uD83D\uDC04', 'ucs2'). This would be a linux specific test.
+
+
+>>>bnoordhuis, Owner
+
+
+
+
+In libuv the conversion is presumably done for consistency because it assumes UTF-8 on Linux and OS X.
+
+
+
+
+
+;##D79 libuv treats paths and filenames as byte arrays, without making assumptios
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D66
+;##SEN NEU
+
+No, no, no.  Libuv treats paths and filenames as byte arrays, no encoding assumed or implied.
+
+
+
+;##D80 libuv uses utf-8 for windows to keep the publi api byte-oriented
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D79
+;##SEN NEU
+
+The reason libuv uses UTF-8 at the edges on Windows is because the NT APIs operate on UTF-16, a two-byte encoding; converting to and from UTF-8 keeps the public libuv API byte-oriented.  Whether that was a good design decision is a separate discussion but that's water under the bridge.
+
+
+>>>bnoordhuis, Owner
+
+
+You've added trailing whitespace in a few places in this file.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D81 filename doesn't have to be alinged on a two-byte boundary
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This is unsound; filename doesn't have to be aligned on a two-byte boundary.  I'd write it like this:
+
+
+
+
+
+
+;##D82 It might pay to turn it into a helper functio
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Swap hi and lo for LE encoding.  There are probably enough places where we do similar fix-ups that it pays to turn it into a helper function.
+
+
+
+;##D83 It also violates strict aliasing
+;##ROLE PM
+;##INV  T
+;##BCOM T
+;##FORM SOL
+;##REL ELABD 81
+;##SEN NEU
+
+EDIT: Apart from alignment issues, it's also UB because it violates strict aliasing.
+
+
+>>>bnoordhuis, Owner
+
+
+UV_EINVAL
+
+
+>>>seishun, Member
+
+
+
+
+Meaning any filesystem encodings that aren't UTF8 can't be used by libuv. This seems self defeating.
+
+
+
+
+
+;##D84 There doesn't seem to be a case of people using Node with non-utf-8 FSs
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D72
+;##SEN NEU
+
+Again, I still haven't seen any examples of people using Node.js with filesystems being non-UTF-8. All I've seen is people having individual files with non-UTF-8 names. This makes it very unlikely that your described use case is anything close to common in libuv either. I don't see how not having an non-portable API, especially one that is only useful for 0.001% of users, is self-defeating for a cross-platform library.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D85 In which case dose EncodeFileanme() return v8::Null?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+;##D86 Doesn't it return an empty handle instead?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D85
+;##SEN NEU
+
+When does EncodeFilename() return v8::Null()?  It returns an empty handle on error, doesn't it?
+
+
+>>>jasnell, Owner
+
+
+@bnoordhuis ... excellent, thanks for the feedback. I'll rework it a bit more.
+
+
+>>>jasnell, Owner
+
+
+@bnoordhuis @trevnorris ... ok, another round of edits pushed. Still have a few more changes to make but hopefully this wraps up the ucs2 issues.
+
+
+>>>jasnell, Owner
+
+
+@trevnorris @bnoordhuis ... updated, PTAL. Refactored the implementation to address @bnoordhuis' feedback.
+New CI: https://ci.nodejs.org/job/node-test-pull-request/1987/
+
+
+>>>jasnell, Owner
+
+
+CI is green
+
+
+>>>bnoordhuis, Owner
+
+
+Can you remove the blank line?
+
+
+>>>bnoordhuis, Owner
+
+
+Ditto.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D87 This check will let null go through, causing a later fail
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+;##D88 We could just ignore it based on GIGO
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D87
+;##SEN NEU
+
+Just noting that the type checks for options will let through null, which will make options.encoding fail with a TypeError.  GIGO, IMO - I'll leave it up to you if you want to handle that.
+
+
+>>>jasnell, Owner
+
+
+
+;##D89 It should be already caught by a previous check
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D87
+;##SEN NEU
+
+The options = options || {} a few lines above should catch that.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D90 If encoding is never changed, it could be made a const
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Suggestion: if encoding_ never changes, make it const.
+
+
+EDIT: Never mind, I see that it gets assigned after construction.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D91 Is it possible to write this as static consts char kErrMsg[]?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Can you write this as static const char kErrMsg[] = ...?  Avoids the extra pointer indirection.  (Although it will probably get optimized away anyway but it's more obviously "right.")
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D92 Assigning this in the constructor would allow to make the field const
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+If possible, try assigning it in the constructor so you can make the field const.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D93 const int argc would be a better name for this
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+IMO, const int argc = .. is a better name for it.
+
+
+>>>bnoordhuis, Owner
+
+
+Ditto.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D94 This could be changed into a enum
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You can write this as enum encoding encoding = ParseEncoding(env->isolate(), args[1], UTF8); - ParseEncoding() returns the default encoding when second_arg->IsString() == false.
+
+
+>>>bnoordhuis, Owner
+
+
+Ditto.
+
+
+>>>bnoordhuis, Owner
+
+
+Ditto.
+
+
+>>>bnoordhuis, Owner
+
+
+The spaces in static_cast< Local<Value> > shouldn't be necessary in C++11.
+
+
+>>>jasnell, Owner
+
+
+In C++11 yes, but our linter complains because it interprets the final >> as an operator and expects spaces around it.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D95 A comment to explain that UCS2 is UCS2LE would be useful
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Maybe add a comment explaining that UCS2 in node means UCS2LE.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D96 Does this have to be a macro?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Does this have to be a macro?
+
+
+>>>jasnell, Owner
+
+
+nope.. will refactor
+
+
+>>>bnoordhuis, Owner
+
+
+Funny local variable name.
+
+
+>>>jasnell, Owner
+
+
+New CI: https://ci.nodejs.org/job/node-test-pull-request/1997/
+New CI: https://ci.nodejs.org/job/node-test-pull-request/1998/
+
+
+>>>jasnell, Owner
+
+
+@bnoordhuis ... CI is looking good with the latest updates. PTAL
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D97 The current name makes it look like a constructor,it should be changed
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Maybe call it MakeUtf8String or something like that.  At call sites, it looks like a constructor now.
+
+
+>>>bnoordhuis, Owner
+
+
+LGTM with a suggestion.  I only looked at the last two commits this time.
+
+
+>>>jasnell, Owner
+
+
++1 will make that edit.
+@nodejs/ctc ... I think this is ready to go, would appreciate additional eyes on it as it's a fairly significant change.
+
+
+>>>trevnorris, Contributor
+
+
+LGTM
+
+
+>>>jasnell, Owner
+
+
+New CI before landing: https://ci.nodejs.org/job/node-test-pull-request/2068/
+
+
+>>>jasnell, Owner
+
+
+Landed in 4d4f353, 060e5f0, and 53a95a5
+
+
+>>>jasnell, Owner
+
+
+Thanks @trevnorris and @bnoordhuis !
+
+

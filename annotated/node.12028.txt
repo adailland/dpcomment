@@ -1,0 +1,1589 @@
+>>>sam-github, Member
+
+;##D1 Some cli options are disallowed for secruity
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+Not all CLI options are supported, those that are problematic from a
+security or implementation point of view are disallowed, as are ones
+that are inappropriate.
+
+
+Disallowed because they don't make any sense to inject, they change node behaviour to fundamentally to be useful:
+
+
+
+
+--version/-v
+
+
+--help/-h
+
+
+--eval/-e/--print/-pe/-p
+
+
+--check/-c
+
+
+--interactive/-i
+
+
+--v8-options (mapped to v8's --help)
+
+
+--: NODEOPT only supports options, so doesn't need a seperator between options and script
+
+
+script.js: the main script and its CLI options can only be specified on the actual command line
+
+
+--preserve-symlinks
+
+
+
+
+Disallowed because of security concerns:
+
+
+
+
+--tls-cipher-list: This is the kind of thing I personally prefer to see configured by env var than by CLI, but @jasnell has concerns, and I've never seen the CLI option used, so I am prepared to wait until someone presents a use-case before allowing this in the future (if ever).
+
+
+
+
+Disallowed because of implementation difficulties:
+
+
+
+
+--expose-internals: Isn't actually implemented by the options parser, will need some code rearranged to become possible to specify in the env
+
+
+
+
+V8 options:
+
+
+
+
+--help (mentioned above)
+
+
+;##D2 Most of the other v8 otpions are just utning so there's no problem
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+I don't see any other V8 options that should be disallowed, they mostly tune or profile the V8 engine run, which is specifically a use-case for NODEOPT
+
+
+
+
+Tests are still missing, and I'm in the process of testing -r, the most important option, but it seems basically workable.
+
+
+Fix: #11997
+Replace: #11888
+Reference: #881
+
+
+
+
+
+Checklist
+
+
+
+
+
+ make -j4 test (UNIX), or vcbuild test (Windows) passes
+
+
+ tests and/or benchmarks are included
+
+
+ documentation is changed or added
+
+
+ commit message follows commit guidelines
+
+
+
+
+Affected core subsystem(s)
+
+
+src
+
+          
+>>>Thread start
+
+>>>sam-github, Member
+
+        
+@bnoordhuis ----^
+
+      
+>>>addaleax, Owner
+
+;##D3 Why would you nto be able to use strtok_r
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+Why would you not be able to use strtok_r?
+
+      
+>>>jchip, Other
+
+;##D4 Why not use std::string::find and substr?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU    
+why not use std::string::find and substr?
+
+      
+>>>sam-github, Member
+
+;##D5 Strtok_f is not ANSI C
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D3
+;##SEN NEU 
+strtok_r isn't ANSI C, not sure it exists on Windows or even all the unixen.
+
+      
+>>>addaleax, Owner
+ 
+;##D6 It should be part of the recent posi
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D5
+;##SEN NEU
+@sam-github My version of the manpage says it’s part of the recent POSIX standards, so I’d take that as a good sign. If you want to be sure whether it’s okay you could just kick of a CI run that uses it.
+
+
+(You can also wait for Ben’s answer, of course, but I got the impression that he’s a bit more busy than usual right now…)
+
+      
+>>>sam-github, Member
+
+;##D7 Windows is not POSIX
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D6
+;##SEN NEU
+
+;##D8 It's not clear if it's important for it to be thread safe
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D7
+;##SEN NEU
+I thought the little one wasn't due for a while. :-) Anyhow, Windows is not so POSIX, but I'll just do it and if it works in CI I guess its good for us. Of course, strtok is everywhere, but its not clear to me whether we care about it not being thread safe. Node doesn't here, but it might matter when its used as a library.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>addaleax, Owner
+
+        
+Can you align the arguments vertically?
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>addaleax, Owner
+
+;##D9 Why is this copied?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+        
+Why the copy? nodeopt will have its own memory anyway
+
+      
+>>>sam-github, Member
+
+
+
+Suspicion, the c_str() docs aren't amazingly clear about the lifetime of the underlying mem. I'll try without (though I've a mem bug somewhere anyway that I have to find).
+
+      
+>>>addaleax, Owner
+
+;##D10 c_strs() is just an alias for data()
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D9
+;##SEN NEU
+
+@sam-github c_str() is an alias for data() nowadays, it lives as long as the string instance itself
+
+      
+>>>sam-github, Member
+
+;##D11 Can't non-const method reallocate?
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D10
+;##SEN NEU
+
+can't non-const methods on the string reallocate the memory invalidating the last pointer?
+
+      
+>>>addaleax, Owner
+
+        
+They can, but you’re not doing that? Indexed accesses seem to be excluded from invalidating the pointer (according to http://en.cppreference.com/w/cpp/string/basic_string/c_str), which makes sense
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>addaleax, Owner
+
+;##D12 Why not strok_r?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Why would you not be able to use strtok_r?
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>gibfahn, Member
+
+        
+Probably worth listing all the options you've excluded in the first comment.
+
+      
+>>>sam-github, Member
+
+        
+You mean in git commit body, list the options? I can do.
+
+      
+>>>gibfahn, Member
+
+        
+Yeah, I suspect a large amount of the discussion will be around which options we should enable under what conditions etc.
+
+      
+>>>sam-github, Member
+
+        
+I added the list and reasons to the description of this item for visibility, and will add them back in later.
+
+      
+>>>mhdawson, Contributor
+
+        
+when you say you will add them back in later.  Do you mean add the reasons for the exclusion as comments in the code ? I think a comment in the code as well is good in terms of longer term history when people look and wonder why its not allowed.  I do see you have the comments for some of them.
+
+      
+>>>sam-github, Member
+
+        
+added comments in source, will add to the commit message when the list stabilizes
+
+      
+
+
+>>>Thread end
+
+>>>jasnell, Owner
+
+              
+Couple of discussion points on this:
+
+
+
+;##D13 Should there be an explicti opt in for blacklisted options?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+For the blacklisted options like --tls-cipher-list, should be there an explicit opt in that would allow those to work. For instance NODEOPT="--tls-cipher-list" node --ignore-nodeopt-blacklist foo ... or do we simply always blacklist those items for sake of simplicity?
+
+
+;##D14 We need a simple way for embedders
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+There needs to be a simple way for embedders like Electron to switch off NODEOPT support (a compile time flag should work fine for this)
+
+
+;##D15 NOEOPT should not be passed down to fork by default
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEu
+
+I still very much want to see NODEOPT to not be passed down to child_process.fork() processes by default.
+
+
+
+
+          
+>>>sam-github, Member
+
+              
+@jasnell
+
+
+
+
+;##D16 --tls-cipher-list is a unique case
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D13
+;##SEN NEU
+
+There are no other options like --tls-cipher-list, its one of a kind, all the other blacklisted items are pretty clearly not the kind of thing that should be in an env var. Having to specify a CLI option to enable an env var isn't something I've heard a use-case for, I think we should wait until someone asks for it and makes a case.
+
+
+
+
+Good idea, I'll add a compile time flag.
+
+
+
+
+Stripping some env vars is something that needs more discussion, I'll follow up when I get out of this meeting.
+
+
+
+
+          
+>>>jasnell, Owner
+
+;##D17 --secruity-revert=flag is another case that needs opt-in
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D16
+;##SEN nEU
+              
+For (1) .. good point :-) The only other one that I would definitely rule out, however, is the --security-revert= flag. It's a purposefully undocumented flag that is a very special case. It's use needs to be explicitly opt-in in every situation.
+
+          
+>>>sam-github, Member
+
+              
+Right, forgot --security-revert (I'd read through the code and it didn't do anything, there aren't any reverts at the moment, so I forgot). See c0836e5
+
+          
+>>>jasnell, Owner
+
+              
++1 ... yeah, --security-revert is a special snowflake that is reset with every semver-major. We haven't had any CVE's that needed to be included in this since 4.x I think so it's a non-op at the current time. Hopefully it'll be able to remain a non-op forever :-)
+
+          
+>>>sam-github, Member
+
+;##D18 Stripping NOEDOPT would deny its usefullness
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D14
+;##SEN NEU
+              
+On stripping of NODEOPT env var during spawn: I think it takes away from the usefullness of NODEOPT (specifically, it means we can't use NODEOPT="-r node-report" npm install ... to debug install scripts), intrudes confusingly into the child_process API, and goes against the basic philosophy of environment, which is that environment is inherited by children.
+
+;##D19 It would still be better to have a one-level NODEOPT than none
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D18
+;##SEN NEU
+However, I'd rather have at least a one-level NODEOPT with this confusing caveat than none at all.
+
+;##D20 Is there a reason for the non-inheritable env var?
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D15
+;##SEN NEU
+@jasnell, can you make a case for why you want this non-inheritable env var behaviour? And what specifically you propose?
+
+
+For example:
+
+
+
+
+
+That NODE_PATH=/some/path NODEOPT=--prof node echo.js should print:
+
+
+
+
+instead of
+
+
+
+
+I would find confusing, is that what you propose?
+
+
+And what do you propose that the following code would print?
+
+
+
+
+I would expect it to print the value of NODEOPT, do you propose it print something else?
+
+          
+>>>jasnell, Owner
+
+
+;##D21 The reason is bcompatibility
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D20
+;##SEN NEU
+@sam-github ... the concern is largely about backwards compatibility and the possibility of NODEOPT settings altering the behavior of child processes in ways that could break.
+
+
+For instance, imagine a child process that uses fs.readFileSync() internally to read a file and return it's contents to the parent. The parent is written to scan stdout / stderr to determine whatever status it needs to know. The child process is launched specifically assuming that flags like --trace-sync-io are not passed (because it is not passed in the args). Using NODEOPT=--trace-sync-io, however, causes a number of warnings to be printed to stderr in the child process potentially causing existing code to break.
+
+
+;##D22 it can break the existing API contract
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D21
+;##SEN NEU
+(Essentially, passing NODEOPT automatically to child processes breaks the existing API contract around args passing to forked child processes.)
+
+;##D23 We could remove NOEOPT from teh env inherited
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D22
+;##SEN NEU
+
+My proposal is that NODEOPT would be simply removed from the env passed to the child process unless an option is set, e.g. fork(path, {nodeopt: true}).
+
+          
+>>>richardlau, Member
+
+;##D24 Wouldn't that be similar to the NODE_DEBUG issue?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D23
+;##SEN NEU
+              
+But don't we already have that issue with existing environment variables, e.g. NODE_DEBUG?
+
+          
+>>>sam-github, Member
+
+;##D25 NODE_TTY_UNSAFE_ASYNC already does that
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D22
+;##SEN NEU
+NODE_TTY_UNSAFE_ASYNC is also inherited, and modifies API contract in ways that would break child processes, there seems to be some precedence for these "use at own risk" env vars.
+
+;##D26 It would be better to disable v8 options 
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D25
+;##SEN NEU
+
+If there is widespread concern, I'd rather disable V8 options that output to stdio then break the inheritance, it leaves the behaviour much more predictable.
+
+          
+>>>jasnell, Owner
+
+;##D27 it's already being removed
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D25
+;##SEN NEU
+
+NODE_TTY_UNSAFE_ASYNC is in the process of being removed entirely, however. There is also extremely little evidence that it's actually used by anyone.
+
+          
+>>>sam-github, Member
+
+;##D28 NODE_DEBUG isn't though
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D27
+;##SEN NEU
+
+NODE_DEBUG isn't getting removed, and has the same characteristics as you describe for NODEOPT=--trace-sync-io: it can be useful, it is inherited, and it will (unsprisingly) break any code that doesn't expect extra output.
+
+          
+>>>bmeck, Contributor
+
+;##D29 It would be better to whitelist than blacklist
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+              
+I would be much more comfortable if this was a whitelist instead of a blacklist. It would prevent accidentally harmful flags from being exposed.
+
+          
+>>>jasnell, Owner
+
+;##D30 NODE_DEBUG is well known so no risk
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D28
+;##SEN NEU
+              
+NODE_DEBUG has been around since v0.1.32 and is well established as an environment variable. It predates the child_process API and it's side effects and inheritance by spawned child processes is well known. It also does not alter arbitrary command line arguments passed into the child process. There is no backwards compatibility concern there and therefore is not directly comparable.
+
+          
+>>>mhdawson, Contributor
+
+;##D31 What if we split nodeopt and nodeopt_inherit?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+              
+@jasnell , what about if we have NODEOPT and NODEOPT_INHERIT and let people choose the behavior they want.  NODEOPT_INHERIT would be passed to child processes while NODEOPT would not.  In that way you can use the environment to set options and chose if they are inherited or not.   I think having the ability to pass on options to child processes is important and this would be one way to let the end user make a specific choice.
+
+          
+>>>sam-github, Member
+
+              
+@jasnell Before I implement this, lets be really clear:
+
+
+
+;##D32 One proposal is to just remove NOEDOPT
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+My proposal is that NODEOPT would be simply removed from the env passed to the child process unless an option is set, e.g. fork(path, {nodeopt: true}).
+
+
+
+
+;##D33 Another is to not set it for child env
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D32
+;##SEN NEU
+
+You propose NODEOPT to not be set in the child process's env?
+
+;##D34 Whitelisting is infeasible
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D29
+;##SEN NEU
+
+@bmeck, Do you mean for node options, or V8 options? I can switch it around to opt-in for node, I think there is a way I can do that, but there are 417 V8 options as of this moment on master, and they all look like the kinds of things someone might want to set via env to tune performance or diagnose mis-performance, and there don't appear to be anything we'd want to blacklist.
+
+          
+>>>jasnell, Owner
+
+;##D35 No, the idea is to not give it to the call
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D33
+;##SEN NEU
+
+@sam-github ... no, if NODEOPT is explicitly passed in the call to fork like in your example, it would be used. What I'm saying is that env is not explicitly given and the default process.env is used, then it's NODEOPT would not be inherited.
+
+
+In other words... NODEOPT is used:
+
+
+
+
+process.env.NODEOPT is used:
+
+
+
+
+process.env.NODEOPT is not used:
+
+
+;##D36 It would need to be an explicit opt-in
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D31
+;##SEN NEU
+
+@mhdawson ... as long as there is an explicit opt-in for the options to be used in child processes I'm fine with however it happens. A second environment variable would not be my first choice tho but I could live with it.
+
+          
+>>>jasnell, Owner
+
+;##D37 Going with noedopt:true default could be switched to default later
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D36
+;##SEN NEU
+              
+Note: that if we went with the nodeopt:true option to spawn/fork now, we can always choose to switch the default later (making the option a non-op) if it can be shown that inheriting the NODEOPT env does not break anyone in practice.
+
+          
+>>>Thread start
+
+>>>jchip, edited
+
+        
+does this handle multiple spaces?  like "-a -b".
+
+      
+>>>sam-github, Member
+
+        
+yes
+
+      
+
+
+>>>Thread end
+
+>>>addaleax, Owner
+
+;##D38 Security will not be affected by passing 1-2 env
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@jasnell @mhdawson If the main risk you have in mind is security, it won’t matter whether you pass one or two environment variables.
+
+
+(But as I’ve said before, using environment variables that are not inherited by child processes seems pointless by definition.)
+
+          
+>>>bmeck, Contributor
+
+;##D39 I would extend it to more than v8
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D34
+;##SEN NEU
+              
+@sam-github I am definitely thinking about more than just node arguments. Things like --harmony-* would prevent some polyfill detection and use incomplete/broken v8 implementations if they are passed.
+
+          
+>>>jasnell, Owner
+
+              
+Another note: the documentation on this should need to be clear that:
+
+
+(a) command line arguments passed directly on the command line take precedence over those passed in NODEOPT and
+(b) Child processing inheriting NODEOPT would not inherit arguments passed on the command line.
+
+
+To illustrate the kind of impact this has consider the following example:
+
+
+
+
+To be certain, this is not a criticism, just something that should be noted. (This is also true when using the NODE_ICU_DATA environment variable)
+
+
+Note that the current CLI/env documentation (https://nodejs.org/dist/latest-v7.x/docs/api/cli.html) currently does not explain that arguments would take precedence over env vars.
+
+          
+>>>cjihrig, Owner
+
+;##D40 Evn variables should be passed by default
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D38
+;##SEN NEU
+              
+I agree with @addaleax that environment variables should be passed to child processes by default.
+
+          
+>>>jasnell, Owner
+
+              
+Another test case that will need be looked at:
+
+
+
+          
+>>>jasnell, Owner
+
+;##D41 --preserve-symlinks should also be excluded
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+              
+--preserve-symlinks is likely another option that should be excluded. Consider, for instance, spawning  another node process that would be fundamentally broken by --preserve-symlinks. It's the kind of option that really shouldn't be set generally.
+
+          
+>>>mhdawson, Contributor
+
+;##D42 NOEDOPT should just be passed to child by default
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D37
+;##SEN NEU
+              
+To clarify, I'd prefer that the NODEOPT environment variable just be passed to child processes by default as well ( was just trying to make suggestions to see how we'd address concerns from @jasnell )
+
+          
+>>>jasnell, Owner
+
+;##D43 It could be okay if we deal with backwardcompatibility
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL GEN D42
+;##SEN NEU
+
+              
+As long as backwards compatibility concerns with problematic command line args are dealt with adequately then I will drop my objection to inheriting the env var. As the examples above point out, there are some very real issues to address.
+
+          
+>>>Thread start
+
+>>>cjihrig, Owner
+
+        
+Style nit: there is a space between opt and }, but the other curly braces don't use space. Same on line 42.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>cjihrig, Owner
+
+;##D44 can we add common.mustcall to the callback?
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+        
+Can you add common.mustCall() to the callback here and on line 43.
+
+      
+
+
+>>>Thread end
+
+>>>sam-github, Member
+
+              
+I disallowed --preserve-symlinks
+
+;##D45 --inspect is useful, but problematic
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+For --inspect, which is quite useful to inherit, the problem is that dynamic ports are explicitly forbidden by node, I'm not sure why:
+
+
+
+
+^--- above requires a trivial diff, I'll PR it seperately:
+
+
+
+
+          
+>>>bmeck, Contributor
+
+              
+List of potentially problematic v8 options:
+
+
+
+;##D46 Hash_seed could also be inherited
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+There are a few others which I think would be odd to see inherited like --hash_seed but not a general problem for parsing/eval I would think.
+
+          
+>>>sam-github, Member
+
+              
+I've wanted to pass --harmony before, because of systems that were spawning node but didn't allow the node CLI options to be configured, and the node code being spawned used koa. Given the improvements in es6 support since 0.12 it isn't as widely used or useful as it used to be, so I don't think I'd need it again, but I have wished for it in the past.
+
+
+;##D47 Why would those options be problematic?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+Why do you consider those problematic? No one is being forced to expose gc, and if someone does do it, its because the person intended to.
+
+          
+>>>bmeck, Contributor
+
+;##D48 Tey are incomplete or unreliable
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D47
+;##SEN NEU
+              
+@sam-github I've had this talk with @fhinkel before, the features are incomplete/ the spec is in flux/ etc. They are not reliable and may not act the same as the finished spec/feature.
+
+          
+>>>sam-github, Member
+
+;##D49 Is --hash_seed for tests or tunign?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D46
+;##SEN NEU
+
+Its not clear from the docs whether --hash_seed is for making test runs more consistent and reproduceable (which would make it a good candiate for NODEOPT) or whether its for performance tuning (which would also make it a good candidate for --hash_seed).
+
+;##D50 We should not prevent people from using V8 with no reasons
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+I don't think we should prevent people from using V8 options without a reason, and if the reason is "it does something they might not want" that seems a bit odd to me. They did want it, thats why they specified it in NODEOPT.
+
+;##D51 We could have people petition to whitelist later
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D50
+;##SEN NEU
+
+That said, its the performance tuning and debug/profile options I personally am looking for, so I'm OK putting a whitelist in and letting other folks petition later for their options to be whitelisted (if they want to).
+
+          
+>>>sam-github, Member
+              
+@bmeck those are reasons to suggest people don't use the option at all (cmd line OR env var), not reasons to  only allow them to be specified in one way, but I'm about to implement whitelist, I'll whitelist all the things I particularly am looking for and let others comment.
+
+          
+>>>bmeck, Contributor
+
+              
+;##D52 Is --hash_seed for tests or tunign?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL ELAB D46
+;##SEN NEU
+
+Its not clear from the docs whether --hash_seed is for making test runs more consistent and reproduceable (which would make it a good candiate for NODEOPT) or whether its for performance tuning (which would also make it a good candidate for --hash_seed).
+
+
+;##D53 --hash-seed should stay
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D52
+;##SEN NEU
+
+Not recommending we remove --hash-seed since it does not affect parsing or [the] runtime.
+
+
+;##D54 We should not prevent people from using V8 with no reasons
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I don't think we should prevent people from using V8 options without a reason, and if the reason is "it does something they might not want" that seems a bit odd to me. They did want it, thats why they specified it in NODEOPT.
+
+
+;##D55 There are many reasons for this
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D54
+;##SEN NEU
+
+Not exactly here, the parent process specified it. Many things on npm use child_process.spawn(process.execPath, ...) or .fork(). The features under harmony for example act somewhat similar or occupy the same names as polyfills which is problematic for feature detections as the behavior of --harmony changes over time where polyfills generally only get bug fixes. Features such as --fast_math change accuracy of things which could be important for those spawned children. Features such as --expose_natives_as/--allow_natives_syntax expose internals that could be problematic for sandboxy children. --disable_old_api_accessors removes some nasty things in JS but they should stay due to them being in the default JS APIs.
+
+
+All of these fall under problems of allowing eval to be mutated in unsafe/unexpected ways vs [the] normal runtime.
+
+
+I am 100% not onboard with these options being inherited by default. You can pass those unsafe options to spawn/fork manually.
+
+          
+>>>jasnell, Owner
+
+;##D56 Enabling those features automatically can be problematic
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D55
+;##SEN NEU
+              
+To expand on what @bmeck is saying, enabling those experimental V8 features automatically (and silently) for child processes could be quite problematic if you're not absolutely sure that it'll work. Code that depends on polyfill implementations could completely break down. And while that is also true for using these experimental flags with arbitrary dependencies, spawned child processes today do not currently incur a cost when the experimental flags are used in the parent. Allowing those to be inherited can easily cause existing code to break in ways most users aren't prepared for.
+
+;##D57 We should be taking a conservative approach
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D56
+;##SEN NEU
+
+There is absolutely zero harm in taking a more conservative approach out of the gate on this. If the environment variable is going to be automatically inherited by child processes, then absolutely make it a whitelist as suggested and keep it conservative for the time being. We can always add options to the whitelist once specific items are demonstrated to be safe.
+
+          
+>>>caitp, Contributor
+
+              
+Hi, I work on v8, and have (accidentally) introduced a plethora of scary bugs into the codebase, some of which we don't necessarily know about yet. In the best cases, these may simply crash your application, while in worse cases, they could enable code to access memory it that it should ordinarily not be able to.
+
+;##D58 Security bugs are more common in experimental features
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D57
+;##SEN NEU
+
+These security bugs can certainly exist in shipped code which does not require --harmony or other feature flags to be enabled, but it's far more likely in staged or experimental features that have not yet been shipped in Chromium.
+
+
+The security issues that --harmony can expose ought to make anyone think twice about implicitly passing it to child processes.
+
+          
+>>>gibfahn, Member
+
+              
+;##D59 We should be taking a conservative approach
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D56
+;##SEN NEU
+
+There is absolutely zero harm in taking a more conservative approach out of the gate on this. If the environment variable is going to be automatically inherited by child processes, then absolutely make it a whitelist as suggested and keep it conservative for the time being. We can always add options to the whitelist once specific items are demonstrated to be safe.
+
+
+
+
+@jasnell you're right. I see less reason to be conservative, but I agree we should take it slower regardless.
+
+;##D60 Child processes are moe important than support flags
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+And I think child processes are more important than the number of flags supported initially. As long as there's a clear list in the docs we can revisit individual flags incrementally later.
+
+          
+>>>Thread start
+
+>>>sam-github, Member
+
+        
+These are basically the options that don't enable any extra APIs (code that needs extra APIs will have already arranged for them to be enabled), and that can be used to tweak runtime performance and/or observe the V8 runtime behaviour to diagnose why live code has particular performance problems. Feel free to comment on any that should be added/removed from whitelist.
+
+      
+
+
+>>>Thread end
+
+>>>sam-github, Member
+
+              
+The whitelist is pretty long, should I pull it into its own header?
+
+          
+>>>sam-github, Member
+
+;##D61 Do we need a ./configure --without-nodeopt? 
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+              
+@jasnell do you still want a ./configure --without-nodeopt for build-time removal of NODEOPT support?
+
+          
+>>>jchip, Other
+
+@jasnell sorry, I lost track with all the other discussions.  Was there an agreed upon approach for allowing the initial NODEOPT being passed and picked up by the first node invocation, without explicit command line opt-in required?
+
+          
+>>>jasnell, Owner
+
+;##D62 Do we need a ./configure --without-nodeopt? 
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Re: ./configure --without-nodeopt ... yes... with the caveat that I tend to visually parse the lower case nodept as no-deopt but that may just be me and I don't have a better suggestion.
+
+
+;##D63 It's not needed if we have a vetted whitelist
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D61
+;##SEN NEU              
+
+With a properly vetted whitelist, I have no further objections to the NODEOPT environment variable being inherited by child processes.
+
+          
+>>>sam-github, Member
+
+              
+ok, I'll add the configure flag
+
+          
+>>>indutny, Owner
+
+;##D64 Nodefalgs could be a better name?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Sorry for bike-shedding, but... NODEOPT really made me think that this is about optimizations somehow. NODEFLAGS maybe?
+
+          
+>>>sam-github, Member
+
+              
+Its not time-wasting bike-shedding, the name matters.
+
+NODEOPT: same as PERL5OPT and RUBYOPT, but maybe "opt" means "optimize"?
+
+
+NODEFLAGS: not optimize... but "flag" often means "option that takes no value"
+
+
+NODE_OPTIONS: new suggestion, all the other node env vars start with NODE_, and OPTIONS is less ambiguous than OPTS
+
+
+
+
+Are there any suggestions? Votes?
+
+          
+>>>addaleax, Owner
+
+              
+NODE_OPTIONS sounds good to me. 👍
+
+          
+>>>indutny, Owner
+
+              
+👍 for NODE_OPTIONS
+
+          
+>>>mhdawson, Contributor
+
+              
++1 for NODE_OPTIONS
+
+          
+>>>Thread start
+
+>>>mhdawson, Contributor
+
+        
+Is this a TODO for now or sometime later ?
+
+      
+>>>sam-github, Member
+
+        
+I think its too unrelated to this PR, I'll PR it seperately. I'm tempted to pull the preload_modules refactor  infot a std::vector out into its own PR, too, its not really related to this, even though I needed it to allow -r in NODE_OPTIONS
+
+      
+>>>jasnell, Owner
+
+        
+Can you make it TODO(sam-github), using your full github username per convention?
+
+      
+
+
+>>>Thread end
+
+>>>ORESoftware, edited
+
+;##D65 NODE_OPTS is a better name than NODEOPT
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+              
+Probably way too late for this but NODE_OPTS  > NODEOPT, that's all I have to add :) but maybe the former is a name clash with existing env var, dunno.
+
+
+NODE_OPTS > NODE_OPTIONS > NODEOPT
+
+
+imo
+
+          
+>>>sam-github, Member
+
+              
+@ORESoftware  Its not too late. I got 6 votes for NODE_OPTIONS, and one comment that "OPTS" reads as "OPTIMIZATIONS", but if your comment gathers lots of upvotes, its just a search-n-replace for me.
+
+          
+>>>sam-github, Member
+
+              
+@bmeck whitelist OK?
+
+
+@cjihrig @jasnell PTAL
+
+          
+>>>bmeck, Contributor
+
+              
+@sam-github lgtm
+
+          
+>>>Thread start
+
+>>>cjihrig, Owner
+
+        
+Can you add spaces around the division operator.
+
+      
+>>>addaleax, Owner
+
+        
+arraysize(whitelist) ftw ;)
+
+      
+>>>sam-github, Member
+
+        
+didn't know about that new macro, thanks.
+
+      
+
+
+>>>Thread end
+
+>>>sam-github, Member
+
+              
+@cjihrig thanks for the feedback, changes made (I forgot that pushes of commits don't cause notifications).
+
+
+Also, I PRed some of the code cleanups as standalone fixes (#12245, #12242, and #12241). I'll rebase onto them and remove some of my XXXes.
+
+          
+>>>sam-github, Member
+
+              
+@mhdawson the above PRs will allow me to remove some of the XXX comments I left in here that you asked about.
+
+          
+>>>sam-github, Member
+
+              
+@cjihrig PTAL
+
+          
+>>>Thread start
+
+>>>cjihrig, Owner
+
+        
+Backtick here.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>cjihrig, Owner
+
+        
+Can you line the function args up vertically.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>cjihrig, Owner
+
+        
+Can you line this up with process on the previous line or make the indentation 4 spaces.
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>cjihrig, Owner
+
+        
+Add spaces around +
+
+      
+
+
+>>>Thread end
+
+>>>sam-github, Member
+
+              
+@cjihrig done
+
+          
+>>>sam-github, Member
+
+              
+ci: https://ci.nodejs.org/job/node-test-pull-request/7306/
+
+          
+>>>sam-github, Member
+
+              
+ci: https://ci.nodejs.org/job/node-test-pull-request/7337/
+
+          
+>>>sam-github, Member
+
+              
+ci: https://ci.nodejs.org/job/node-test-pull-request/7338/ (fixed test that was broken by env var rename)
+
+          
+>>>sam-github, Member
+
+              
+@cjihrig PTAL
+
+          
+>>>sam-github, Member
+
+              
+
+
+Change request withdrawn :-)
+
+
+
+
+@cjihrig I think I made your suggested changes. And you review status is still "changes requested"
+
+          
+>>>sam-github, Member
+
+              
+ci: https://ci.nodejs.org/job/node-test-pull-request/7464/
+
+          
+>>>sam-github, Member
+
+              
+ci: https://ci.nodejs.org/job/node-test-commit/9200/  (arm-fanned failed last time)
+
+          
+>>>jasnell, Owner
+
+              
+Windows CI failed
+
+          
+>>>Thread start
+
+>>>jasnell, Owner
+
+;##D66 This error message could be imporved
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+        
+The error message here is not very clear. Perhaps something like %s is not supported in NODE_OPTIONS\n
+
+      
+>>>sam-github, Member
+
+;##D67 We could change allowed to supported
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D66
+;##SEN NEU
+        
+I can change "allowed" to "supported". I don't think you want the "non-option" removed, it says why its not supported, its not an option. Please confirm.
+
+      
+>>>jasnell, Owner
+
+        
+I'm not a fan of the non-option part, to be honest. I'm not that concerned about differentiating between known options that are not supported and things that are not valid options in the first place.
+
+      
+>>>sam-github, Member
+
+        
+done
+
+      
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jasnell, Owner
+
+        
+The test should likely include all whitelisted options to ensure that those do not cause the process to error out.
+
+      
+>>>sam-github, Member
+
+        
+ok
+
+      
+>>>sam-github, Member
+
+        
+done
+
+      
+
+
+>>>Thread end
+
+>>>sam-github, Member
+
+              
+@nodejs/platform-smartos I can't see the SmartOS tests being related:
+
+
+
+          
+>>>sam-github, Member
+
+              
+Having difficulty seeing the ARM7 failure as related, either, it passed on ARM8, same machine: https://ci.nodejs.org/job/node-test-commit-arm/9106/
+
+
+
+          
+>>>sam-github, Member
+
+              
+Passed last time, running again after rebase.
+
+
+ci: https://ci.nodejs.org/job/node-test-pull-request/7575
+
+          
+>>>Thread start
+
+>>>refack, Member
+
+        
+Maybe rename I read it as no-deopt...
+
+      
+>>>sam-github, Member
+
+        
+ok, will do
+
+      
+>>>gibfahn, Member
+
+        
+Maybe test-cli-node-options.js
+
+      
+
+
+>>>Thread end
+
+>>>sam-github, Member
+
+              
+ci: https://ci.nodejs.org/job/node-test-pull-request/7646/
+
+
+@refack PTAL
+
+          
+>>>sam-github, Member
+
+              
+@refack My pleasure, thanks for the comments and code.
+
+          
+>>>bnoordhuis, Owner
+
+;##D67 The whitelist approach misguides in light of V8 options
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I think the whitelist approach is very much misguided in light of V8's many useful options.  If people feel NODE_OPTIONS is a useful addition, go all the way - don't settle on some bland compromise that no one is happy with.
+
+;##D68 Blacklist would make sense for stuff that doesn't work
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I can see why you would want to blacklist some flags but the argument for blacklisting should be 'cannot possibly work' (e.g. --eval), not 'security'.
+
+          
+>>>Fishrock123, Owner
+
+              
+I agree with @bnoordhuis here...
+
+
+Although I do not think we should introduce this in a minor, lest some security holes be opened unknowingly.
+
+          
+>>>bmeck, Contributor
+
+;##D69 WHitelist a is a better approach than blacklist
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL REFR D67
+;##SEN NEU
+              
+@bnoordhuis I am not sure I understand the reason to prefer blacklisting over whitelisting. I think each option that alters runtime behavior or loaded is my concern. Altering behavior with this flag would affect anyone spawning children, so people would have to detect and guard against those flags. In addition, it would be a breaking change if these flags were enabled and modules were not prepared for those changes. Security isn't my concern, but a whitelist allows less to get through accidentally as v8 introduces them over time.
+
+          
+>>>sam-github, Member
+
+              
+I agree with @bnoordhuis, too, but there was significant resistance.
+
+
+I will do a follow up PR after this first one is in use that puts more trust in the user to set the V8 options they want. That could happen in a major.
+
+          
+>>>sam-github, Member
+
+              
+ci: https://ci.nodejs.org/job/node-test-pull-request/7670/
+
+
+Only windows failure was, on one machine, this flaky test:
+
+
+
+
+
+
+https://ci.nodejs.org/job/node-test-binary-windows/8004/
+
+
+
+          
+>>>sam-github, Member
+
+              
+@gibfahn everything passed except one test on one machine on windows that is marked unstable, or so it appears to me, does this LGTY?

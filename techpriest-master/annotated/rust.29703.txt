@@ -1,0 +1,904 @@
+>>>GuillaumeGomez, Member
+
+
+r? @alexcrichton
+cc @Gankro
+
+
+This PR adds the possibility to switch style: generated doc link
+
+
+
+
+
+I generate a file to include new css files directly before compiling librustdoc. However, a few questions remain:
+
+
+
+
+Should I create a file which includes "basics" and only work on changes?
+
+
+Is my change on Makefile file correct?
+
+
+
+
+This is a first step before adding this change to rustbook as well.
+
+
+>>>Gankro, Contributor
+
+
+The screenshot is busted for me, idk github seems to be puking serving the file (I once got a blurred copy of what looked like a nice dark theme, now I get a blank image).
+
+
+Is there a motivation for this addition? It's kinda cool, but we shouldn't necessarily add stuff just because it's cool.
+
+
+Edit: fixed.
+
+
+>>>GuillaumeGomez, Member
+
+
+Because this white documentation is really annoying and killing my eyes. But I didn't want to impose my preferences so I added the possibility to switch between the two styles.
+@steveklabnik gave me his approval to do it so I did. :)
+
+
+PS: hum, weird... What happened to the screenshot ? :'(
+
+
+>>>alexcrichton, Owner
+
+
+
+;##D1 It might not be a good idea to add multiple styles to the documentation
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEG
+
+I'm also a little wary on adding multiple styles to documentation, is this common of other documentation generators? Perhaps the generation step could have a style, but the rendered step?
+
+
+>>>GuillaumeGomez, Member
+
+
+I find it better this way but I'm totally open to other proposition of course.
+
+
+>>>GuillaumeGomez, Member
+
+
+I also updated the screenshot link. And improved the code a bit.
+
+
+>>>steveklabnik, Contributor
+
+
+So, I really dislike dark themes, but it's a very, very common feature request, so I did mention to @GuillaumeGomez that they should try to work this up, to see what it's like.
+
+
+Usually, what people ask for is "how do I get a dark style".
+
+
+>>>alexcrichton, Owner
+
+
+
+;##D2 Should theme be handled by browser extensions?
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL REFRAMES D1
+;##SEN NEU
+
+If we're just trying to solve the questions of how to get a different style at all, aren't that what browser extensions are for? This should largely just boil down to a different stylesheet in theory.
+
+
+I'd feel a little better about this if any other documentation generators had this sort of option, but I think I'd still prefer to remain consistent among all our docs. cc @brson, you've had thoughts about this in the past as well.
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D3 Why shouldn't we provide themes ourselves instead of asking to add browser extensions to users?
+;##ROL OP
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL REFRAMES D2
+;##SEN NEU
+
+Asking user to do it themselves by adding browser extensions is a bit annoying. Why not providing it ourselves if we can ? It doesn't take that much after all. :-/
+
+
+>>>lwandrebeck, Other
+
+
+Running Gnome 3 and apps in dark theme, I must admit being able to easily get doc in dark would save my eyes a bit 👍
+@alexcrichton you do speak about browser extension, I’d need to check but I’m not that sure that Gnome Web (Epiphany) does support that. Thus, an in-doc dark (and others ?) theme would perfectly fit (at least my) some needs.
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D4 In addition to provide multiple styles, I would also allow users to load custom themes
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D3
+;##SEN NEU
+
+I'd also like to precise that I want to implement it differently on rustbook : instead (or alongside, I really like the possibility to switch theme on the fly) of providing the possibility to switch the style while reading, I'd want to add the possibility to load a custom theme at book generation time.
+
+
+I hope it was clear enough...
+
+
+>>>nikomatsakis, Contributor
+
+
+
+;##D5 Asking users to load custom css might be too complex
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL REFR D4
+;##SEN NEU
+
+@alexcrichton I don't have a strong opinion here, but I think loading custom CSS is (imo) kind of a tall ask for ordinary humans.
+
+
+>>>alexcrichton, Owner
+
+
+
+;##D6 Requesting to support multiple style is rare enough to not justify the change
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D3
+;##SEN NEU
+
+I do kinda agree that saying "you should use a browser extension" is quite a bit to ask, but on the other hand it also seems just as rare to request not only a different style from rustdoc but supporting multiple styles?
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D7 The few request to support themes are rarely answered, hence the need to support multiple themes
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D6
+;##SEN NEU
+
+@alexcrichton: It's not rare for people to ask theme that fit them better, but it's rare that their request is granted, and that's a shame. I doesn't request much to do after all.
+
+
+>>>alexcrichton, Owner
+
+
+
+;##D8 Supporting multiple themes would lead to too much overhead
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEG
+
+Unfortunately an addition like this ends up not being small when viewed over the vector of time. Although this is not much to add now, this may have consequences like:
+
+
+
+
+This creates an inconsistent experience when browsing Rust documentation. If your preference is an alternate theme then you have to set that for every rustdoc instance you view. Not only that, but most Rust "properties" have the same style (e.g. the home page and the std api docs), and you won't be able to change the theme of all of them.
+
+
+Bug reports will be filed and we'll have to start asking which style everyone's using. This is just an added layer of friction which isn't always necessary.
+
+
+Bug reports will specifically be filed against one theme or another requiring us to either collect them or actively fix problems in both styles.
+
+
+New features in rustdoc will have to be design for all styles, not just one. It's already basically a herculean task keeping rustdoc up to date, much less keeping the style itself up to date.
+
+
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D9 The expected overhead is overestimated, since the change would be only about the style and not the content
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D8
+;##SEN NEU
+
+I don't agree with you:
+
+
+
+
+It doesn't create an inconsistent experience but an alternative one. If it became the main theme, it'd be inconsistent but it's not the case.
+
+
+I don't see how style (where only colors in css changed) can have bugs. And if bugs there are, they're also in the main theme.
+
+
+Just like the previous point, if a bug is found on the dark theme, it certainly does exist for the main one.
+
+
+This is an issue I thought about. But here, we're talking about modifying css, and nothing more. You make a change on the main theme, you report it on the dark one and it won't take much more time (but it'll take time, yes). For this point, you can just ping me to make the change and I'll gladly do it if it allows users to have a dark theme.
+
+
+
+
+>>>vberger, Contributor
+
+
+
+;##D10 It would be helfpul to also split the CSS in two different files
+;##ROLE ETC
+;##INVF
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Among the possibilities to reduce the burden of maintaining such a split, as long as the only change is the colors, wouldn't it be a possibility to split the CSS file in two ?
+
+
+A file defining the structure of the page, and 2 small files for the colors (light.css / dark.css) ?
+
+
+>>>GuillaumeGomez, Member
+
+
+@vberger: Your explanation is way better than what I said:
+
+
+
+
+Should I create a file which includes "basics" and only work on changes?
+
+
+
+
+Thanks for it. :)
+
+
+>>>wthrowe, Contributor
+
+
+
+;##D11 The change would force generate_styles to be run everytime, it should be moved somewhere else
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Target dependencies are evaluated at parse time, so this is going to cause generate_styles.py to be run every time make is invoked.  It should be moved to a recipe somewhere.
+
+
+>>>GuillaumeGomez, Member
+
+
+I put it there in order to make it work. I couldn't figure out where was the right place but if you know it, please tell me the secret ! :)
+
+
+>>>wthrowe, Contributor
+
+
+
+;##D12 styles.rs should have its own target
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D11
+;##SEN NEU
+
+I believe $(S)src/librustdoc/html/styles.rs should have its own target, much like how llvmdeps.rs used to be handled.  The appropriate stamp file (stamp.rustdoc, I think) should depend on it.
+
+
+
+;##D13 The location of the generated file should not be src.
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'm not sure if generating the file in src is appropriate or if it should be somewhere in the target output directory.  If the latter it should probably look like the current llvmdeps.rs code.  If it does end up in src it should be presumably be added to .gitignore.
+
+
+>>>brson, Contributor
+
+
+I'm definitely on board with being able to customize the generated style.
+
+
+
+;##D14 Allowing to change styles during runtime might not be a good idea
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN POS
+
+I too am a little wary of being able to switch styles at runtime. As someone who likes a nice dark background though, I also understand the appeal. (As an aside, I still really want the rustonomicon to be dark by default.) I always want to resist the urge to add more options to distract people with.
+
+
+Does this patch do both and can it be split into two prs? Since adding the dark theme to the live docs is going to require a lot of consideration anyway, I think it's reasonable to split this up as possible.
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D15 The themes will be split over different files
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D10
+;##SEN NEU
+
+@brson: Like explained by @vberger, I'll create a common file with basics of rustdoc style and then just leave theme changes in both main.css and dark.css. So this PR will mainly add the possibility to switch theme. I'll provide a live rustdoc demo as soon as possible.
+
+
+Thanks for your support ! :)
+
+
+>>>GuillaumeGomez, Member
+
+
+I splitted the css files and added styles.rs to gitignore file. I'll create the online rustdoc tomorrow.
+
+
+>>>GuillaumeGomez, Member
+
+
+And here is the generated std doc.
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D16 Local storage should be added to keep the style when changing pages
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I also added local storage to keep the same style between pages.
+
+
+>>>mdinger, Contributor
+
+
+
+;##D17 Adding a dark theme would be beneficial for the users health
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+To those who are opposed to a dark theme for maintainability or stylistic reasons, that isn't necessarily a good reason. Some people may prefer dark themes for stylistic reason but the more important subset may use them to avoid headaches and severe eyestrain. I would never print white text on black paper for reading but I avoid all rust documentation if possible when the background is white.
+
+
+Let me rephrase, if all the main rust developers couldn't sleep at night and were getting headaches because bright monitors (maybe set to minimum brightness) and white pages made life more difficult, this would probably be a very high priority issue.
+
+
+Likely most people aren't affected that severely but those who find them slightly uncomfortable may really really want such a feature.
+
+
+>>>mdinger, Contributor
+
+
+
+;##D18 Some colors need to be updated because don't work with the theme
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You'll need to update the deprecated and unstable colors because they don't seem to quite work with the theme.
+
+
+This is pretty pleasant compared to the default. The switcher is kinda weird but so what.
+
+
+>>>GuillaumeGomez, Member
+
+
+@mdinger: Thanks for the feedback and your support ! I'll update it in the day.
+
+
+>>>pnkfelix, Member
+
+
+
+
+more important subset may use them to avoid headaches and severe eyestrain
+
+
+
+
++1 to this.
+
+
+
+;##D19 Will we be adding a lot of themes or only this one?
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+We're not talking about having thirty different themes in the long run here, just the two (light vs dark), right?
+
+
+and, BTW, since @brson said
+
+
+
+
+I too am a little wary of being able to switch styles at runtime.
+
+
+
+
+
+;##D20 Allowing users to change theme runtime is important for usability
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL REFR D14
+;##SEN NEU
+
+Seems to me that having the option to switch it at run-time (rather than doc-generation time) is crucial for serving the purpose of helping the audience be able to read the docs in comfort.
+
+
+(Updated text above to try to make the targets of my responses clearer.)
+
+
+>>>pnkfelix, Member
+
+
+
+;##D21 We should keept the light theme and add the dark one, not replace it
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+(just to be clear: I would definitely want us to keep the light theme, at least as an option; I am someone who likes to print documents and put them on an e-ink screen, and in that context, dark-text on light-background tends to be the way to go...)
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D22 The objective of the change is not to replace the light theme, but to add the dark one
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D21
+;##SEN NEU
+
+@pnkfelix: The goal here isn't to get rid of the light theme but to give access to others alongside with the main one. Thanks for your comments !
+
+
+>>>pnkfelix, Member
+
+
+
+
+The goal here isn't to get rid of the light theme
+
+
+
+
+Right, I understand that; I was just anticipating someone saying "if the light theme is causing eye strain, why don't we just get rid of it and use only the dark theme", and so I wanted to include my (selfish) reason for wanting the light theme to persist.
+
+
+>>>GuillaumeGomez, Member
+
+
+Well, no. Getting rid of the light theme is a bad idea from my point of view, no need for you to give your reasons (and they're not that selfish because even if I prefer dark theme, I use the light one to print ^^).
+
+
+>>>mdinger, Contributor
+
+
+Not everyone gets eyestrain from computer screens. It's probably somewhat related to the specific computer screen and the individual but regardless, the same way some people strongly desire a dark theme, some strongly prefer a light theme. Those people probably don't get eyestrain enough to bother them.
+
+
+That's probably why first questions like this are typical (you can almost read it like: "release: nice, nice, nice, nice, can we have a light theme"). So aside from each of our selfish reasons for our specific preference (and e-paper and printing), there are probably just as many others (if not more) with the complete opposite preference as we have so removing the choice wouldn't be great.
+
+
+>>>GuillaumeGomez, Member
+
+
+@mdinger: I updated both items' style.
+
+
+>>>alexcrichton, Owner
+
+
+r? @brson
+
+
+>>>brson, Contributor
+
+
+
+;##D23 Do we want to allow users to switch themes dyanmically?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D20
+;##SEN NEG
+;##D24 Does ths theme is a good complementary to the light one?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D23
+;##SEN NEU
+
+Well, I'm conflicted now. The thing I was more convinced of (customizable static themes) is not what others want or this provides. So I guess the main question is whether we want to let people switch dynamically to a dark theme. If so, then whether the provided dark theme is suitably attractive and complementary to the light, and what this means for our other docs.
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D25 We could allows to switch theme dynamically or ask to select one when the doc is built.
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM ENU
+;##REL ELAB D23
+;##SEN NEU
+
+@brson: For rustbook, I have two things in mind:
+
+
+
+
+Just like rustdoc, wwe change the style dynamically.
+
+
+We specify the style when we build the book.
+
+
+
+
+And... Is there other documentation ?
+
+
+>>>brson, Contributor
+
+
+
+;##D26 Is there a reason why rustbook specify the style in the build, but not rustdoc?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D25
+;##SEN NEU
+
+@GuillaumeGomez Why does rustbook specify the style when building, and rustdoc doesn't?
+
+
+
+;##D27 It would be nice to add rbe onto rustbook
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Other docs include the doc index and error index, the website, and rbe which seems to still use gitbook. None feel too important, though it would be nice to get rbe onto rustbook.
+
+
+
+;##D28 Does the way the theme peferences are stored allow the settings to be shared?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Does the way you are storing theme preferences allow one setting to be shared by all our rustbook and rustdoc projects across subdomains?
+
+
+>>>GuillaumeGomez, Member
+
+
+
+;##D29 Rustbook is usually built by the users for themeslves, therefore the style is specified in the build
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D26
+;##SEN NEU
+
+For rustbook, it's because we generally build the book for ourselves. I actually want to add both options.
+
+
+
+;##D30 Rustdoc enfroces the theme style
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D26
+;##SEN NEU
+
+For rustdoc, we impose it. And you'll notice that the change is very little for those who don't want the dark theme.
+
+
+
+;##D31 For other docs, providing an alternative is the best approach
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D26
+;##SEN NEU
+
+For other docs, I guess providing an alternative, just like for rustdoc, seems to be the best solution.
+
+
+>>>mdinger, Contributor
+
+
+
+;##D32 rbe should nto be moved to rustbook until multiplw themes are available
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D27
+;##SEN NEG
+;##D33 mdbook should be ported before rustbook becuasr there's much effort put into it
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'm opposed to moving rbe to rustbook until multiple themes land on rustbook and frankly, mdbook seems to get much more effort put into it than rustbook and I'd probably port to that first. It already has the theme support.
+
+
+
+;##D34 There are multiple reasons why rbe has not been ported
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM ENU
+;##REL ELAB D27
+;##SEN NEU
+
+Aside from that, there are a few things that prevent porting rbe (there was another but I can't remember what it is. Search probably wouldn't be a blocker but losing it wouldn't be good):
+
+
+
+
+cargo needs to expose what's in the Cargo.toml via some api. This would allow the structure of the examples to be used to generate the structure of the TOC (which is basically what it does already without cargo)
+
+
+a plugin or something needs to be setup to allow the embedded playpen. Hopefully it'll be better than the current one because mucking around with the output as rbe does makes errors much more difficult to interpret than in the playpen.
+
+
+we lose search by moving away from gitbook currently. Search is pretty useful. mdbook is planning to add it but who knows when it'll land.
+
+
+
+
+>>>brson, Contributor
+
+
+
+
+For rustbook, it's because we generally build the book for ourselves
+
+
+
+
+@GuillaumeGomez This still isn't clear to me. Ourselves meaning 'for personal use' as opposed to 'for publication'?
+
+
+
+
+mdbook seems to get much more effort put into it than rustbook and I'd probably port to that first. It already has the theme support.
+
+
+
+
+
+;##D35 We should merged the books into mdbook instead of having multiple
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D33
+;##SEN NEU
+
+@mdinger Hm, it does look better-maintained. If we moved the books out of the repo we could move them all to mdbook. We should be consolidating our tools long-term and I don't want to be on 2 (or 3!) *books.
+
+
+>>>Gankro, Contributor
+
+
+
+;##D36 rustbook is invoked directly, rustdco indirectly
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D29
+;##SEN NEU
+
+@brson I think the key insight here is that rustbook is generally invoked "directly" (although ultimately automated away by build scripts), but rustdoc is generally invoked indirectly (through cargo doc or similar).
+
+
+>>>mdinger, Contributor
+
+
+
+;##D37 The tooling necessary to port rbe is not ready yet
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL REFR 35
+;##SEN NEU
+
+@brson I'm all for consolidation but for rbe's needs, I don't think the tooling is ready. Other books like the book and the rustonomicon probably don't have such strict requirements.
+
+
+Having the native tools external to rust should be a boon for usability too (that was day 2 of him trying to build it. Here's day 1).
+
+
+>>>GuillaumeGomez, Member
+
+
+I changed the way the style is changed while the DOM content is loaded. The flash shouldn't happen anymore.
+
+
+>>>mdinger, Contributor
+
+
+Deprecated and unstable look better. I'm sensing kinda a tron theme ha.
+
+
+>>>GuillaumeGomez, Member
+
+
+A tron theme ? Not flashy enough. And the blue should dominate more. So definitely not tron (too bad, I like tron ^^).
+
+
+>>>brson, Contributor
+
+
+
+;##D38 Introducing this change would create too much overhead and create a precedent for dual-design
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D8
+;##SEN POS
+
+Although this is well done, and there are strong advocates for it, I am going to close it without merging. The main reason is that forces us to consider two visual designs for all Rust documentation, which is presently created through 4 or 5 different tools. Furthermore, even if we were to follow through with overhauling all existing documentation in light of this concern, we will have to deal with the dual-design precedent when we overhaul and consolidate our visual designs in the future.
+
+
+Thanks @GuillaumeGomez.
+
+
+>>>mdinger, Contributor
+
+
+
+;##D39 A placeholder should be created to remember the problem with this change
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D38
+;##SEN NEU
+
+In that case some kind of placeholder bug which details the problems blocking this from merging should be created. Then progress can be made towards this in the future, at the very least.
+
+
+>>>GuillaumeGomez, Member
+
+
+I was really hoping to finally have the official docs with dark style. Like said on IRC, I don't mind adding this dark theme everywhere and maintain it if needed. But this light theme is really uncomfortable.
+
+
+>>>brson, Contributor
+
+
+
+;##D40 Introducing this change needs to wait until we start working on a website redesign
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D38
+;##SEN NEG
+
+@mdinger I didn't mean to imply that there is a path forward for adding dark themes. It is something though we should reconsider in the future when doing a concerted website redesign.
+
+
+>>>liigo, Contributor
+
+
+Not force, just a choice
+
+
+>>>mdinger, Contributor
+
+
+@brson Oh. Thanks for clarifying. I understood it to mean that the reason this isn't accepted is because the implementation is via 4-5 different tools and so it needs to be consolidated. Not because light and dark isn't part of the current scheme.
+
+
+>>>PersonneHasard1995, Other
+
+
+
+;##D41 This change would be useful to reduce the problems caused by a light theme
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D17
+;##SEN NEU
+
+For me to have this dark style is really a good thing. Let me explain we all have differents style, when i saw this new dark style it was a really pleasure for my eyes because the white style are hurting each time i'm seing my screen even with the minimal brightness and it distorts my reading because my eyes become tired. With the dark style it would be a really pleasure to read the documentation.
+
+

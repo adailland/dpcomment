@@ -1,0 +1,3188 @@
+>>>kunalspathak, Contributor
+
+
+(Note from the CTC (Fishrock123): This thread is expected to garner a lot of attention. Comments that are not productive to discussing the technical aspects may be removed.)
+
+
+
+
+
+Enable Node.js to optionally build and run on Microsoft's ChakraCore JavaScript engine.
+
+
+We implemented a V8 API shim (aka chakrashim) which takes advantage of ChakraCore runtime hosting APIs (JSRT). This shim implements most essential V8 APIs so that the underlying JavaScript engine changes are transparent to Node.js and native addon modules written for V8.
+
+
+Here is the summary of commits :
+
+
+
+
+chakrashim source code
+
+
+ChakraCore v1.1.0.1 source code
+
+
+build script changes to build Node.js with ChakraCore on Windows OS for x86, x64 and ARM
+
+
+node-gyp changes to build Node.js with ChakraCore on Windows OS for x86, x64 and ARM 1
+
+
+gyp changes to to build chakrashim and ChakraCore on Windows OS for x86, x64 and ARM 2
+
+
+node source code changes needed to run on ChakraCore
+
+
+unit test updated for ChakraCore
+
+
+
+
+1  node-gyp changes won't directly be submitted via PR, but will be first submitted to upstream branch as pointed out in nodejs/node-gyp#873. They are included in PR so reviewers can build and test Node.js with chakracore. Node-gyp changes are divided in two commits, first is based on changes needed to build node.js with chakracore for x86 and x64 for Windows OS and other based on changes need to support building it for ARM architecture for Windows OS.
+
+
+2 gyp changes are also divided in two commits. One for x86/x64 and other for ARM.
+
+
+>>>Fishrock123, Owner
+
+
+@kunalspathak Thanks for the PR! This has a very large impact so please expect review to take a considerable amount of time. :)
+
+
+>>>daekano, Other
+
+
+VERY cool! Don't envy the code reviewers here though!
+
+
+>>>joshmanders, 👍
+9
+
+
+This is by far one of the coolest things I've seen happen to Node.js since the convergence of io.js and Node.js.
+
+
+>>>MikeFielden, Other
+
+
+Legit. Thanks, cant wait until this happens 👍
+
+
+>>>unicodeveloper, Other
+
+
+The review will really take a lot of time and scrutiny! 🍴
+
+
+>>>SilverIgniter, Other
+
+
++1️⃣ guys, really good job! 💥
+
+
+>>>robcolburn, Other
+
+
+
+;##D1 Is node_engine enstablished elsewhere?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Nit: is node_engine established elsewhere? Maybe js_engine? This line and everywhere else for consistency
+
+
+>>>indutny, Owner
+
+
+
+;##D2 Everything related to node is usually prefixed with node_
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+We usually just prefix node stuff with node_ in here.
+
+
+>>>robcolburn, Other
+
+
+cool, cool
+
+
+>>>ingIor, Other
+
+
+This is incredibly cool, I have a request.
+
+
+Please do not post comments on the GH issue unless you have something important to add. These issues gain a lot of attention and it makes it incredibly hard for collaborators to communicate.
+
+
+Locking the issue to collaborators means other people from the outside who have a significant ***** contribution or want to help can't do that.
+
+
+Comments like +1 -1 and such create a significant amount of noise.
+
+
+Support open source, keep the discussion clean.
+
+
+EDIT(@trevnorris): Possible accidental use of inappropriate word? Has been removed.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D3 What would happen if v8 is updated and it stops being compatible with Chakra shim?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@kunalspathak What happens when v8 needs to be updated and the API doesn't match the Chakra shim? Will we need to hold off until the shim also has an update?
+
+
+>>>jasnell, Owner
+
+
+@kunalspathak ... thank you for submitting this. As you can imagine, it's going to be a big review and could take some time to settle out.
+
+
+@trevnorris ... I have separately reached out to each of the V8 and Chakra teams and invited both to sit down face to face to work through the API/ABI impact of this change and figure out how we can make the ABI layer more robust. I'm working out the logistics for that face to face now and want to make sure to extend the invite to all the @nodejs/ctc members as well. There are a ton of questions this brings up and I think sitting down for an afternoon to hash things out would be quite productive.
+
+
+>>>benjamingr, Member
+
+
+
+;##D4 It would be better if it was configure_engine(o = 'v8')
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Prefer function default parameter values def configure_engine(o = 'v8'):
+
+
+>>>ChALkeR, Owner
+
+
+
+;##D5 The name doesn't make snese because it's not a function parameter
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D4
+;##SEN NEU
+
+But it's not a function parameter.
+
+
+>>>pritambaral, Other
+
+
+Then default options.engine at nodejs/node-chakracore@12cc5d9#diff-e2d5a00791bce9a01f99bc6fd613a39dR380
+
+
+
+
+
+>>>kunalspathak, Contributor
+
+
+@pritambaral  , @benjamingr  - Default is v8 engine as seen in vcbuild.bat
+
+
+>>>pritambaral, Other
+
+
+
+;##D6 SInce it's in configure, ti would be better if it were replaced with the first assignment of options.engine
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D4
+;##SEN NEU
+
+@kunalspathak Yes, but the line commented-upon here is in configure and not vcbuild.bat. It would be better if the or-set in this line were replaced with the very first assignment of options.engine, which is what I think @benjamingr intended.
+
+
+>>>kunalspathak, Contributor
+
+
+Fair point.
+
+
+>>>jasnell, Owner
+
+
+Marking it as semver-major for now (just to be safe), although semver-minor might be appropriate once we get further along in the review. Very happy to see this tho.
+
+
+>>>benjamingr, Member
+
+;##D7 Why is ChakraCore not a dependency?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ 
+;##REL NEW
+;##SEN NEU
+Is there any need for these files here?
+Why isn't ChakraCore brought as a dependency?
+
+
+>>>MrRio, Other
+
+
+
+;##D8 Because the core is a dependency
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D7
+;##SEN NEU
+
+It's because this is the shim, the Core is brought in as a dep, but this is closely linked to node.
+
+
+>>>kunalspathak, Contributor
+
+
+
+;##D9 It's easier to update the chakracore when they're aligned with the github counterpart
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REF ELAB D8
+;##SEN NEU
+
+Thats right. The sources in core folder are from Microsoft/ChakraCore. It is just easier to update the chakracore sources in node deps when they are aligned with their origin in github counterpart.
+
+
+>>>panuhorsmalahti, Other
+
+
+
+;##D10 Why not using a submodule?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D8
+;##SEN NEU
+
+Why not use a git submodule?
+
+
+>>>jianchun, Other
+
+
+
+
+Why not use a git submodule?
+
+
+
+
+
+;##D11 This follows the convention of source copy rather than submodule
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D10
+;##SEN NEU
+
+This follows the convention of existing deps -- source copy instead of submodule. It allows more flexibility such as making changes here before upstream when necessary (Not familiar with submodule, don't know if that's also supported).
+
+
+>>>MylesBorins, Owner
+
+
+
+;##D12 Node does not use submodules for dependencies
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL GEN D12
+;##SEN NEU
+
+@panuhorsmalahti node currently does not use submodules for dependencies. It may be a good idea to document how dependencies are updated.
+
+
+Currently for dependencies such as v8, libuv, or npm we take version updates as a single commit updating the state of the current directory, generally from a collaborator of the project we are downstream from. In between large updates we will sometimes backport changes as individual patch's.
+
+
+>>>panuhorsmalahti, Other
+
+
+@jianchun: okay, I didn't know about that convention. I disagree with it, but I guess changing that convention is another discussion. To answer your question, if the upstream needs to be modified without changing e.g. the master branch, a new branch should be created upstream.
+
+
+>>>sam-github, Member
+
+
+
+;##D13 submodules won't allow to patch the thirdparty source
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D12
+;##SEN NEU
+
+@panuhorsmalahti git submodules don't allow the thirdparty source to be patched, or work with thirdparty deps that are not available via git.
+
+
+>>>Qix-, Other
+
+
+
+;##D14 What is the advantage of this PR?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Maybe this is a stupid question, but what is the advantage to this PR? To use Chakra instead of V8, right? Is that a runtime specification or a build specification?
+
+
+>>>ChALkeR, Owner
+
+
+
+;##D15 Does this work only on windows?
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Am I correct that this currently works only on Windows platform? Initial Linux support is still on the roadmap of ChakraCore: https://github.com/Microsoft/ChakraCore/wiki/Roadmap. And that is decribed as «make it link, make it run, no JIT».
+
+
+>>>sethgaurav, Other
+
+
+
+;##D16 Cross-platform is being worked on
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D14
+;##SEN NEU
+
+Yes, its currently Windows only. For cross-platform support, the key target for next six months on the roadmap is to get the interpreter & runtime working. JIT would come after that (don't read it as no JIT forever - it was just a breakdown of what we need enable and its ordering for next 6 mos).
+
+
+>>>ChALkeR, Owner
+
+
+
+;##D17 Will Chakracore be trated as a first-class citizen?
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Will ChakraCore be treated as a first-class citizen? That is:
+
+
+
+
+
+;##D18 Will there be binary build withChaCore for each Node.js release?
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D17
+;##SEN NEU
+
+Will there be binary builds with ChakraCore for each Node.js release provided from the nodejs.org site?
+
+;##D19 Will it be guardeent that ChakrCore must work with node.js versions?
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D17
+;##SEN NEU
+
+Would it be guaranteed that ChakraCore must work with every next Node.js version, or would it be ok if v6.2.0 builds with ChakraCore, v7.0.0 breaks with ChakraCore (let's say the shim update didn't get in in due time), and v7.1.0 works again with ChakraCore?
+
+
+What if v7.3.0 breaks again with ChakraCore in a semver-minor version, because of some additive change that didn't get yet ported to the shim?
+
+
+
+
+>>>mikeal, Owner
+
+
+@ChALkeR I think those questions can't be answered until after this PR lands. We have support in Node.js for architectures that we don't have in CI and pretty much all the ones we do have were added some time after support for the architecture was landed. I don't think anyone wants to add another vector to CI until we know there is some stability here and we're only going to figure that out after it lands.
+
+
+>>>jasnell, Owner
+
+
+@ChALkeR ... at least in my opinion, it depends on what is meant by "first-class citizen"
+
+
+
+
+
+;##D20 Binaries will be hosted by Microsoft
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D18
+;##SEN NEU
+
+For the very near term, likely not. Having officially supported builds of Node+ChakraCore is likely quite some time off and wouldn't be able to happen at least until the cross-platform work is done. Similar to how we (IBM) handled our Node-on-PPC and Node-on-AIX builds, it would be more likely that Msft would host their own downloads with builds of Node+ChakraCore (please correct me if I'm wrong @orangemocha or @kunalspathak), at least until a decision is made to officially provide Chakra support.
+
+
+
+
+
+;##D21 It is possible that updates to V8 will break Chakrea shim
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D20
+;##SEN NEU
+
+2 and 3: I think it's too early to determine that. Given the dependency on the V8 APIs currently, and given how quickly those could change, there will need to be dedicated effort by Microsoft and other interested collaborators to ensure that the Chakra shim continues to work. It is entirely possible that semver-major update of V8 could land that could break these. Until we're sure that the shim is stable, we likely won't want to commit to ensuring that things would continue to work.
+
+
++1 to what @mikeal just said as I was typing this :-)
+
+
+What I'd personally like to see is getting this landed but clearly indicating that it is experimental and unsupported for the time being.
+
+
+>>>ChALkeR, Owner
+
+
+@mikeal @jasnell You mean that the initial answer is «no» to all questions (i.e.: no guarantees at all for the time being), with a possibility to change in the future? That seems legit.
+
+
+>>>mikeal, Owner
+
+
+Yup, this is sort of a classic "let's put this behind a flag and see what happens" situation :)
+
+
+>>>Fishrock123, Owner
+
+
+
+
+Yup, this is sort of a classic "let's put this behind a flag and see what happens" situation :)
+
+
+
+
+As a note, this is not a runtime feature, so it is explicitly behind a build-time flag.
+
+
+>>>vkurchatkin, Member
+
+
+It seems like a nightmare to support.
+
+
+
+;##D22 What would we do if a PR is opened for a API supported by v8 butnot by Chakra shim
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL REFR 21
+;##SEN NEU
+
+Imagine the following: someone make a PR that uses v8 API. CI breaks on Chakra build, because shim doesn't support said API. What we are going to do? wait until Chakra implements them? abandon the PR?
+
+
+What if next week someone PRs support for JSC or SpiderMonkey?
+
+
+>>>ChALkeR, Owner
+
+
+
+;##D23 We would land it and report it to ChakraCore
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D22
+;##SEN NEU
+
+@vkurchatkin If I read the answers above by @mikeal and @jasnell correctly — ignore the breakage and land, but mention the people who will support ChakraCore and give them a chance to fix this.
+
+
+>>>jasnell, Owner
+
+
+
+;##D24 We would reject it and report it to the support of experiemtnal Chakra
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D22
+;##SEN NEU
+
+@vkurchatkin ... initially, we would not gate acceptance of any V8 changes based on whether or not it breaks Chakra. The responsibility would be on those collaborators who are supporting the experimental Chakra support to update that code to work again.
+
+
+>>>mikeal, Owner
+
+
+
+
+Imagine the following: someone make a PR that uses v8 API.
+
+
+
+
+
+;##D25 The general direction is to use less API
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL GEN D22
+;##SEN NEU
+
+The general direction the project wants to go in is to become more vm agnostic, which means using less of the API, not more, and moving towards a neutral API that all vm's can support natively. That's a long way off, we have a lot of work to do, but this is the first step in that direction.
+
+
+>>>vkurchatkin, Member
+
+
+@ChALkeR well, the goal is to make it officially supported one day, obviously. Otherwise committing this code doesn't make anything. So, when we decide that it is supported, what would be the answer then?
+
+
+>>>vkurchatkin, Member
+
+
+
+
+The general direction the project wants to go in is to become more vm agnostic, which means using less of the API, not more, and moving towards a neutral API that all vm's can support natively. That's a long way off, we have a lot of work to do, but this is the first step in that direction.
+
+
+
+
+
+;##D26 This change goes in opposite direction though
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D25
+;##SEN NEU
+
+This seems to be a step in the opposite direction, really. I mean, it implements v8 API, not neutral API. Also, adding another vm into source tree seems like a step in the opposite direction as well.
+
+
+>>>TooTallNate, Contributor
+
+
+
+;##D27 This code could me moved to a common defines
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This could probably be moved to a common "defines" array, since its duplicated 11 lines below.
+
+
+>>>kunalspathak, Contributor
+
+
+Sure.
+
+
+>>>Qix-, Other
+
+
+@jasnell
+
+
+
+
+What I'd personally like to see is getting this landed but clearly indicating that it is experimental and unsupported for the time being.
+
+
+
+
+Then it should go on a dedicated branch, not master.
+
+
+>>>mikeal, Owner
+
+
+
+
+Then it should go on a dedicated branch, not master.
+
+
+
+
+
+;##D28 This should remain on the master branch, as we've done in the past with experimental features
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+That's just not in line with how we've added any experimental features before. Branches might be used from time to time to develop a feature but it's never used by the public until it lands in master. For instance, AsyncWrap has been experimental and in master for quite a while.
+
+
+>>>jbergstroem, Member
+
+
+
+;##D29 Is there an ouput of vcbuild.bat test ?
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Before we start running this on our CI -- @kunalspathak do you have output of vcbuild.bat test somewhere?
+
+
+>>>Qix-, Other
+
+
+@mikeal Sounds exactly like what a change like this deserves.
+
+
+>>>Fishrock123, Owner
+
+
+@Qix- Note: this does not replace V8, it only gives a built-time option to.
+
+
+
+;##D30 No ouput yet
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D29
+;##SEN NEU
+
+Edit @joshmanders, nope, sorry!
+
+
+>>>joshmanders, Other
+
+
+@Fishrock123 was that meant to be directed at me?
+
+
+>>>jianchun, Other
+
+
+@jbergstroem  vcbuild.bat test output
+
+
+>>>indutny, Owner
+
+
+
+;##D31 This would increase substancially the download size, without being used ofte
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'm slightly concerned about download size of our repository. Having a big chunk of code living there and not being used in 99% of cases seems to be a huge waste of bandwidth. (I know many people clone the repo, or get the source from tarballs)
+
+
+>>>jasnell, Owner
+
+
+
+;##D32 The next step would be move toward a more abstract API between Node and VM
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D26
+;##SEN NEU
+
+@vkurchatkin ... it's a step in the right direction, it's not the only step :-) The next step is to begin moving towards a more abstracted ABI between Node core and the VM layer, which is something that ought to make a LOT of things in core easier... for one, we'd be able to take V8 updates faster than we currently do, even potentially landing new V8 majors within stable branches. It's a long road, however, and there are many steps along the way that still need to be figured out.
+
+
+>>>jasnell, Owner
+
+
+
+;##D33 We could solve the size problem by having the build download the tar only if needed
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D31
+;##SEN NEU
+
+@indutny ... I do share the concern over download size. One possible approach is to handle this similar to how we handle the ICU dependency. IF the config option is set to use this, then the build goes out and grabs the tar file and drops it into the deps folder, then and only then is this large chunk of optional code downloaded.
+
+
+>>>mikeal, Owner
+
+
+If we're considering pulling in stuff during build time we need to ping @nodejs/build :)
+
+
+>>>naholyr, Contributor
+
+
+Many APIs and/or options didn't come to exist for the sake of platform equality (thinking about sendfile for example), is this about to change or are you going to wait for Linux/Mac compatibility of Chakra?
+
+
+>>>vkurchatkin, Member
+
+
+
+;##D34 This only seems to make maintaining node harder
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D32
+;##SEN NEU
+
+@jasnell I'm really trying to see how it makes transitioning to abstract VM API easier, but I can't. I clearly see how it will make maintaining node much more difficult in short term, though.
+
+
+>>>nathanpeck, Other
+
+
+Brace style is not consistent here
+
+
+>>>Fishrock123, Owner
+
+
+@nathanpeck Please point comments about Chakracore files to https://github.com/Microsoft/ChakraCore -- there's not much we are going to do about it here. :)
+
+
+>>>kunalspathak, Contributor
+
+
+👍  to @Fishrock123
+
+
+>>>jasnell, Owner
+
+
+
+;##D35 This change would have no impact on maintenance
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D34
+;##SEN NEU
+
+I'm not seeing how it makes maintaining node more difficult in the short term as maintaining support for the Chakra shim would not be in the critical path of any other changes. For the majority of collaborators, in the short term, they could simply ignore the Chakra stuff and would be perfectly fine. There would be zero impact. If we made it a download-on-build option then it would be even less of an impact.
+
+
+
+;##D36 This change would make transition to abstract VM API easier
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB 36
+;##SEN NEU
+
+In the long term, it helps making the transition to an abstract VM API easier because the Chakra team has had to go through this exercise of getting Chakra to transparently act like V8. That means they've gathered a significant amount of experience about what it would take to create that abstraction. By combining their experience and bringing the various teams together for discussion, we can begin to identify how that abstraction needs to be defined.
+
+
+>>>davidmurdoch, 👍
+4
+
+
+I haven't seen anyone answer why this should be added.
+
+
+
+;##D37 Why should node support ChakraCore?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D14
+;##SEN NEU
+
+Why should node support the ChakraCore engine? What are the benefits of doing so?
+
+
+>>>mscdex, Contributor
+
+
++1 to making this downloadable on demand at build time like the intl data.
+
+
+>>>orangemocha, Member
+
+
++1 to what @jasnell said:
+
+
+
+
+initially, we would not gate acceptance of any V8 changes based on whether or not it breaks Chakra. The responsibility would be on those collaborators who are supporting the experimental Chakra support to update that code to work again.
+
+
+
+
+
+;##D38 Hopefully we would get to the point where we can include support in stable releases
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D24
+;##SEN NEU
+
+... but hopefully when and if the Chakra team has proven their ability to keep up with those breaks, we'll be able to include support in stable releases. I guess we will cross that bridge when we get there, and it's a good idea to deem this as 'experimental' for now.
+
+
+We can still add support for ChakraCore in CI, so that at least we know when things break, even though it wouldn't prevent acceptance of PRs. I will get working on that.
+
+
+In terms of reviewing this change, I am tempted to say that we could treat the stuff under deps/ as a black box. The remaining delta is actually fairly small.
+
+
+@kunalspathak it might make sense to maintain ChakraShim in its own repo, and update it here as a whole.
+
+
+>>>vkurchatkin, Member
+
+
+
+
+I'm not seeing how it makes maintaining node more difficult in the short term as maintaining support for the Chakra shim would not be in the critical path of any other changes. For the majority of collaborators, in the short term, they could simply ignore the Chakra stuff and would be perfectly fine.
+
+
+
+
+I'm talking about period after that.
+
+
+
+
+In the long term, it helps making the transition to an abstract VM API easier because the Chakra team has had to go through this exercise of getting Chakra to transparently act like V8. That means they've gathered a significant amount of experience about what it would take to create that abstraction.
+
+
+
+
+So, they've already done that. If this code remains in a separate repo, their experience is not going to become any less useful.
+
+
+>>>jbergstroem, Member
+
+
+
+;##D39 It's not good to land somethign with 51 tests failing on the supported OS
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'm not very comfortable landing anything that has 51 test fails on the currently only supported OS, be it optional or not. I'll look at running the PR against our own CI shortly.
+
+
+>>>kunalspathak, Contributor
+
+
+
+;##D40 Those failures are due to unimplemented features in chakrashim
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D39
+;##SEN NEU
+
+@jbergstroem - We are aware of these test failures and most of the unit test failures are because of unimplemented features in chakrashim. We are working on getting them to 0 failures. We will keep this thread posted on our status.
+
+
+>>>loopmode, 👍
+1
+
+
+@davidmurdoch chakra currently has a more complete es6/es7 implementation. Of course once v8 catches up it'll be a different story.
+
+
+>>>kevva, 👍
+2
+
+
+
+;##D41 It will increase effort required by packag maintainers to support two engines
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+As a package maintainer, I'm afraid that I'll have to make sure that stuff works across two engines, in addition to all node versions. While having another engine has its upsides, it's most likely going to cause compatibility issues.
+
+
+>>>Fishrock123, Owner
+
+
+@kevva I think many of us have similar concerns. We'll be trying to make sure everything is as compatible as possible.
+
+
+>>>kevva, Other
+
+
+
+;##D42 This might be out of the scope of node
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+@Fishrock123, yeah, but it's almost out of nodes scope in a way. Even though everything in the node API works across both engines, we still have to account for JS features that will differ between them. Not to mention all the native abstractions.
+
+
+>>>kobalicek, Other
+
+
+Maybe @obastemur (jxcore) can contribute to the discussion?
+
+
+
+;##D43 Would ge nice to have a zero overhead neutral API
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I would like to see something like zero overhead Neutral API that can target more JS engines, I would myself contribute to such effort. I even started developing mine called JSNI (js native interface) after V8 broke several times my own addon, but I was never able to support more than V8 and it is based on macros.
+
+
+>>>Qix-, 👎
+1
+
+
+@Fishrock123
+
+
+
+
+Note: this does not replace V8, it only gives a built-time option to.
+
+
+
+
+I understand that. What I'm saying is this is a major change that not many people will need/use but many, many will have to support and maintain. I don't see this as a plus for Node at this time, personally.
+
+
+>>>jagtesh, 👍
+1
+
+
+
+;##D44 This change might fragment the community
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+As much as I'd like to see this feature in, I'm afraid that some of the finer differences between V8 and Chakra fragment the community. Packages supporting Chakra only may emerge, while some other existing packages may not work on Chakra. Their use together will create a mess on both engines.
+
+
+
+;##D45 We could adopt the ruby gems way
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+We could mitigate this (somewhat) the Ruby gems way by allowing packages to specify what engines they support. Still feel some thought needs to go into this from the more experienced members of our community.
+
+
+>>>kobalicek, Other
+
+
+
+;##D46 The real problem is how to support two engines
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D45
+;##SEN NEU
+
+@jagtesh I think the question is about how to support more engines transparently. V8 doesn't have stable API, maybe introducing a stable and neutral API can take less time than continuing using V8 in long term. Also, having neutral API would mean that all engines are considered equal.
+
+
+>>>mikeal, Owner
+
+
+
+
+Fragmentation.
+
+
+
+
+
+;##D47 Chakra won't introduce a lot more differences
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB Dd44
+;##SEN NEW
+
+The differences between Chakra and V8 in terms of ES-NEXT support are roughly the same as the differences in V8 we have been shipping in different major releases so there's no reason to think that Chakra is going to cause fragmentation on the JS layer and because they are shimming the V8 API they won't be fragmenting native API users either.
+
+
+>>>megastef, Other
+
+
+
+;##D48 Will v8 specific native modules run on Chakra?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Question: does it mean that v8 specific native modules like gc-stats or memwatch-next would run on Chakra? Are Chakras gc metrics correct and useful for monitoring ?
+
+
+>>>lightningtgc, Other
+
+
+
+;##D49 Any performance comparison?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Any performance comparison between V8 and Chakra in Node?
+
+
+>>>kunalspathak, Contributor
+
+
+@lightningtgc  - Please refer to this blog that talks about performance comparison.
+
+
+>>>yjhjstz, Other
+
+;##D50 How to deal with node-inspector not usable anymore?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Node.js addon like node-inspector can't be used anymore. :( @kunalspathak
+How to handle this?
+
+
+>>>kunalspathak, Contributor
+
+
+
+;##D51 Debugger support not implemented yet
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D50
+;##SEN NEU
+
+@yjhjstz  - Yes, we have not implemented debugger support for node+chakracore yet. You can follow its development at JsRTDebugging.
+
+
+>>>ghost, Other
+
+
+Different engines have different API. Do we have a starderd API document?
+
+
+>>>denghongcai, Other
+
+
+JavaScript Engines like V8, Chakra, may be best to unify the ABI layer.
+
+
+>>>irfn, Other
+
+
+
+;##D53 What does this mean in repsect to ES6?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What would this mean with respect to ES6 features. Would one expect the same level as Edge.
+
+
+
+;##D52 Will node be built with both engines?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Would this mean that node will be built with both engines and one can select on runtime(command line switch etc.) or would you have separate prebuilt binaries with node and v8
+
+
+>>>obastemur, Contributor
+
+
+
+
+What would this mean with respect to ES6 features. Would one expect the same level as Edge.
+
+
+
+
+
+;##D53 This PR comes with Async/Awaits
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D51
+;##SEN NEU
+
+Yes. Looks like this PR comes with Async/Await feature is enabled. (nodejs/node-chakracore@77a5f8d#diff-7da8fe3a685013a34f9825ff00f2f343R64)
+
+
+Details on async/await -> https://blogs.windows.com/msedgedev/2015/09/30/asynchronous-code-gets-easier-with-es2016-async-function-support-in-chakra-and-microsoft-edge/
+
+
+>>>jasnell, Owner
+
+
+
+;##D54 The initial decision wil be to support all features supported by V8
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D51
+;##SEN NEU
+
+As far as ES features are concerned, until a decision was made to support Chakra officially, the baseline for supported features would have to be whatever is supported by V8. Anything supported by Chakra but not supported by V8 would be "use at your own risk" and would not be something could be supportable by core.
+
+
+>>>shigeki, Contributor
+
+;##D55 Shouldn't this PR be divided in two, one for each feature added?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@kunalspathak This PR includes two new features. One is adding ChakraCore as a new JS engine and the other is adding a new os and arch support where Node running Windows on arm. Is it difficult to separate this into two PRs? I'm not sure V8 can be built and run on the Windows arm.
+
+
+>>>Qard, Member
+
+
+
+;##D56 We should start using submodules more
+;##ROLE PM
+;##INV ETC
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+We have a github org just for nodejs stuff now, and public repos are free...maybe we should just start pulling stuff out of deps and use git submodules that point to our own forks we can maintain with whatever patches we need.
+
+
+
+;##D57 Merging this would provide a control sample of attempting to formalize consistent internal API
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Also, I really hope we can get this merged if for nothing else than just to have a control sample in our attempts to formalize a consistent internal API. It's easy to overlook the rough edges in our internals when only interfacing with one VM that seems to work okay most of the time, even though its API is actually really weird compared to most other VMs.
+
+
+>>>orangemocha, Member
+
+
+
+
+use git submodules
+
+
+
+
+
+;##D58 submodules are mot problems than worth
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D56
+;##SEN NEU
+
+git submodules would be nice in principle but in practice git submodule implementation is more trouble that it's worth. Anyway, I opened nodejs/build#310 so that we can continue the discussion about optional dependencies there.
+
+
+>>>mazhlekov, Other
+
+
+nice, next step - bundle app in .exe :D
+
+
+>>>Fishrock123, Owner
+
+
+@mazhlekov That's out of scope for this. :)
+
+
+>>>kunalspathak, Contributor
+
+
+@irfn, to answer your questions:
+
+
+
+
+Would one expect the same level as Edge.
+
+
+
+
+
+;##D59 Chacrak might have more ES6 features than edge
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D53
+;##SEN NEu
+
+Not necessarily. ChakraCore might have ES6 features not yet present in Edge because ChakraCore binaries get ultimately merged to Edge and not vice-versa. So you will get latest ES6 features in node+chakracore that might not be released in Edge yet.
+
+
+
+
+Would this mean that node will be built with both engines and one can select on runtime(command line switch etc.) or would you have separate prebuilt binaries with node and v8
+
+
+
+
+
+;##D60 No, builds will be separated
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D54
+;##SEN NEU
+
+No. Currently, you can build node either with chakracore or v8 and not both. Command line to build with chakracore is
+
+
+
+
+>>>kunalspathak, Contributor
+
+
+
+
+Is it difficult to separate this into two PRs?
+
+
+;##D61 It should be divided in three rather than two
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D55
+;##SEN NEU
+
+Thanks @shigeki for feedback. I could separate the PRs. From your comments, I suppose this has to be divided in 3 PRs however:
+
+
+
+
+Node-gyp changes that needs to go in node-gyp repo.
+
+
+Make node run on Windows for ARM a new PR.
+
+
+Enabling Node.js with Chakracore engine (the original PR).
+
+
+
+
+For this to happen, I will have to overwrite commits (by taking it 1 and 2 off from some commits) and update my branch. Are you fine with that?
+
+
+>>>zchrykng, Other
+
+
+I don't have much skin in this game, other can being a user of node, but really like the idea of moving toward a standardized API/ABI for the javascript engines. Node's dependence on V8 was always one of the things that made me most nervous about the platform.
+
+
+>>>shigeki, Contributor
+
+
+@kunalspathak Yes, I'm fine with it. Reading the minutes of ctc meeting today, this discussion will be continued in an issue. You should not be in a hurry to work on my requests.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D62 It is hard to abstract the core layer
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@zchrykng The @nodejs/api group has done some preliminary research into an abstraction layer. Unfortunately since core relies on v8 specifics it's difficult to abstract at that layer. So as a more feasible goal I think we've decided to first tackle the native user exposed API. That unfortunately won't help this case.
+
+
+>>>rvagg, Owner
+
+
+
+;##D63 We could base development on a V8 shim
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEw
+;##SEN NEU
+
+An interesting prospect that came out of discussion around nodejs/LTS#62 (specifically how to enable non-ABI breaking V8 upgrades during Stable cycles) from @bnoordhuis was to start with a shim that reflects the V8 API at a point in time and let V8 evolve behind that shim while keeping it stable for Node's purposes. The idea here was that we could do this at the start of a Stable cycle, V8 could do it's ABI-breaking dance but we get to keep the same ABI (and API) as long as we can manage those changes behind a shim of their earlier API.
+
+
+
+;##D64 The shim would then be evolved into a engine-agnostic layer
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D63
+;##SEN NEU
+
+One could take that approach a bit further and suggest that we it with a longer-term in mind and evolve the shim to something resembling a slightly more engine-agnostic layer that can be backed with V8, ChakraCore or another engine. That way we would have a concrete starting point (the V8 API at the time we started) and take an evolutionary approach to making it more ideal. IMO this would work a lot better than the revolutionary approach of defining an entire API from scratch and doing the implementation work as this is almost begging to be a dead-in-the-water project unless there are serious and dedicated resources applied to such an effort.
+
+
+>>>Fishrock123, Owner
+
+
+
+
+One could take that approach a bit further and suggest that we it with a longer-term in mind and evolve the shim to something resembling a slightly more engine-agnostic layer that can be backed with V8, ChakraCore or another engine. That way we would have a concrete starting point (the V8 API at the time we started) and take an evolutionary approach to making it more ideal. IMO this would work a lot better than the revolutionary approach of defining an entire API from scratch and doing the implementation work as this is almost begging to be a dead-in-the-water project unless there are serious and dedicated resources applied to such an effort.
+
+
+
+
+
+;##D65 We should do this to develop agnostic front APIs
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL GEN D64
+;##SEN NEU
+
+Any reason we wouldn't use this to start developing our own more agnostic public-facing API? It seems  like a good starting point where we can feel engine differences and similarities.
+
+
+>>>vkurchatkin, Member
+
+
+
+
+Any reason we wouldn't use this to start developing our own more agnostic public-facing API? It seems like a good starting point where we can feel engine differences and similarities.
+
+
+
+
+V8 is a terrible choice for that. JSC, Chakra and SpiderMonkey API have a lot in common and V8 is very different.
+
+
+>>>kobalicek, Other
+
+
+I also think V8 shouldn't dictate how the neutral API should look like. It's overcomplicated without any benefits compared to others. I think the main problem is that V8 API really reflects its internals, when internals change, public V8 API changes as well. The worst addition was all of these Maybe<> maybes.
+
+
+I was thinking on how the neutral API should look like, and I think that it should just not use typedefs (aka NAN), but it should just wrap everything and provide really thin layer on top of JS engines. If designed right it would be zero overhead abstraction. If this goes well then JS engine writers may even enhance their engines to allow even more seamless integration with the neutral API.
+
+
+>>>macalinao, 👎
+1
+
+
+Is there really a benefit in supporting engines other than v8? There are
+quite a few native modules, so I'm not sure officially creating a shim is
+the best approach. Furthermore, this would only work on Windows. Maybe Node
+should be forked with only Chakra as the backend.
+On Thu, Jan 21, 2016 at 11:27 Petr Kobalicek notifications@github.com
+wrote:
+
+
+
+
+I also think V8 shouldn't dictate how the neutral API should look like.
+It's overcomplicated without any benefits compared to others. I think the
+main problem is that V8 API really reflects its internals, when internals
+change, public V8 API changes as well. The worst addition was all of these
+Maybe<> maybes.
+
+
+I was thinking on how the neutral API should look like, and I think that
+it should just not use typedefs (aka NAN), but it should just wrap
+everything and provide really thin layer on top of JS engines. If designed
+right it would be zero overhead abstraction. If this goes well then JS
+engine writers may even enhance their engines to allow even more seamless
+integration with the neutral API.
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>LPGhatguy, Contributor
+
+
+@simplyianm ChakraCore is in development for other platforms; a neutral API would also open up the possibility of using other engines like SpiderMonkey without breaking plugins.
+
+
+>>>ofrobots, Contributor
+
+
+There is a large body of native modules out there. An evolutionary rather than a revolutionary approach, as @rvagg suggests is probably the best way to move forward. Examples from other ecosystems to consider would be ruby vs jruby, cpython vs. pypy (not exactly the same beasts, but still relevant): a revolutionary break in compatibility with native modules has meant jruby still cannot run rails compatibly. An evolutionary approach gives as a way to get to a VM api without causing wide-spread churn in the ecosystem.
+
+
+>>>aruneshchandra, Member
+
+
+
+
+Node.js addon like node-inspector can't be used anymore. :( @kunalspathak
+How to handle this?
+
+
+
+
+@yjhjstz, as @kunalspathak pointed out - our debugging support is a work in progres. Currently, we are in the process of replacing Windows specific COM based debugging APIs with JSON based Modern Diagnostic APIs, which can be used inside any host by writing a simple adapter for that host. The goal is to make ChakraCore interoperable with existing debugging tools for Node.js. I showed a brief demo of this early work at NodeInteractive using VS Code for now. So, please stay tuned!
+:)
+
+
+>>>hiddentao, 👍
+1
+
+
+As a package maintainer I'm also concerned. Even if we go with a fixed ABI/API layer and allow the engine(s) underneath to grow and/or be swapped out, there's still the risk that different engines may exhibit different behaviour (especially thinking about bugs) for the same API - meaning your package runs fine on V8 but not on Chakra, or vice versa. This can be mitigated through extensive and thorough tests but there's always a probability.
+
+
+>>>jasnell, Owner
+
+
+Agreed and acknowledged. This is precisely why we would want to be very
+careful about if, how and when we accepted chakra as an officially
+supported first class citizen in core. There are many issues such as this
+to work out.
+On Jan 21, 2016 11:00 PM, "Ramesh Nair" notifications@github.com wrote:
+
+
+
+
+As a package maintainer I'm also concerned. Even if we go with a fixed
+ABI/API layer and allow the engine(s) underneath to grow and/or be swapped
+out, there's still the risk that different engines may exhibit different
+behaviour (especially thinking about bugs) for the same API - meaning your
+package runs fine on V8 but not on Chakra, or vice versa. This can be
+mitigated through extensive and thorough tests but there's always a
+probability.
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>tflanagan, Contributor
+
+
+This might be obvious, but it hasn't been said...
+
+
+JavaScript developers are by no means strangers to having to deal with multiple engines. Not to say minimizing, or nullifying, the differences wouldn't be greatly appreciated.
+
+
+How would we document these differences?
+
+
+>>>megastef, 👍
+1
+
+
+I suggest to keep separate projects/binaries and submitting in PR to https://github.com/coreybutler/nvm-windows - to support switching between Node and Chakra. Like io.js was separated from node.  But users are then aware that they switch to something 'different'.
+
+
+>>>kobalicek, Other
+
+
+shouldn't there be a separate discussion about the neutral API? Was this discussed before?
+
+
+>>>190n, Other
+
+
+Why don't we make this easier by developing a universal interface for JS engines?
+
+
+>>>mikeal, Owner
+
+
+Started a thread to discuss Node.js moving toward VM neutrality :) nodejs/roadmap#54
+
+
+>>>runvnc, 👎
+4
+
+
+VM neutrality is great, but embrace, extend, extinguish is a real Microsoft policy.  Their documented track record of interfering with de facto/real standards must be part of the conversation.  Accepting something like this could very easily lead to the end of Node a few years down the line.
+
+
+I assume this comment will be censored.  Therefore I will record it for later reference in the aftermath down the line.
+
+
+>>>tanaydin, Other
+
+
+In some day we will write codes like that...
+
+
+
+
+
+and we all gonna hate about it.
+
+
+>>>multics, Other
+
+
+
+
+在 2016年1月23日，上午8:00，tanaydin sirin notifications@github.com 写道：
+
+
+In some day we will write codes like that...
+
+
+if (engine === 'v8') {
+do_stuff_for_v8();
+} else if (engine === 'chakra') {
+do_stuff_for_chakra();
+}
+
+
+and we all gonna hate about it.
+
+
+—
+Reply to this email directly or view it on GitHub.
+
+
+
+
+Hate this, +1
+
+
+>>>bterlson, 👍
+1
+
+
+
+
+
+
+
+
+I would suggest handing different script engine similarly to web best practices - feature detect what you need. Also similar to what is done when you want to support multiple versions of Node with differing language feature support. Doing a script engine check like this is a bad idea as it will likely break when the script engines' capabilities change.
+
+
+>>>MrRio, Other
+
+
+This is a very different Microsoft submitting this PR. It literally shims
+the same API rather than extending it.
+
+
+On Fri, 22 Jan 2016 at 21:18, Jason Livesay notifications@github.com
+wrote:
+
+
+
+
+VM neutrality is great, but embrace, extend, extinguish is a real
+Microsoft policy. Their documented track record of interfering with de
+facto/real standards must be part of the conversation. Accepting something
+like this could very easily lead to the end of Node a few years down the
+line.
+
+
+I assume this comment will be censored. Therefore I will record it for
+later reference in the aftermath down the line.
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+
+James Hall
+Director
+Parallax Agency Ltd
+M. 07894950320
+
+
+
+
+>>>MrRio, Other
+
+
+Just land it and see what gives. It's adding so many features and doesn't
+break anything else.
+It can be refined once in and think about different engines later.
+On Fri, 22 Jan 2016 at 19:55, Mikeal Rogers notifications@github.com
+wrote:
+
+
+
+
+Started a thread to discuss Node.js moving toward VM neutrality :)
+nodejs/roadmap#54 nodejs/roadmap#54
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+
+James Hall
+Director
+Parallax Agency Ltd
+M. 07894950320
+
+
+
+
+>>>Fishrock123, Owner
+
+
+Please refrain from telling us to "just land it". That would be very irresponsible of us.
+
+
+>>>MrRio, Other
+
+
+Yeah fair point.
+
+
+There's so many things we could um and ah over. It might be easier to take a more pragmatic approach. Getting it into the codebase while finer details are still up in the air would allow people to test it out and refine it. Especially as it doesn't break anything else.
+
+
+>>>MylesBorins, Owner
+
+
+@MrRio there is no guarantee it doesn't break stuff. As well, if the PR is rebased against master there is nothing to stop individuals from applying the patch if they want to try it out themselves. Simply merging into master is not humming and ha'ing... it imho is the pragmatic approach.
+
+
+>>>MrRio, Other
+
+
+@TheAlphaNerd I see your point. Are there particular tests we can write to ensure this? Happy to lend a hand.
+
+
+I worry the PR will remain open for a long time discussing without action.
+
+
+Who is responsible at Microsoft's end for helping this get merged in?
+
+
+>>>MylesBorins, Owner
+
+
+@MrRio the thread was started by a Microsoft employee, and there are others who have chimed in as well. This is going to take a while, the implications on the ecosystem should not be under estimated. Thank you for your patience.
+
+
+>>>Qix-, Other
+
+
+Landing a PR without checking the code for any language that allows direct modification of memory (which is basically every major language out there right now - definitely C/C++) is begging for problems.
+
+
+
+
+
+Nothing in the above code removes anything, but will definitely cause you hard to debug problems. Crude example, but it gets the point across.
+
+
+>>>kunalspathak, Contributor
+
+
+@MrRio , you could try out this by cloning nodejs-chakracore branch. As @TheAlphaNerd  mentioned, there are certain things that are unimplemented in chakrashim and we are working on it.
+
+
+Regarding testing, you can check out the unit test results which will give you an idea of stability.
+
+
+>>>waynebloss, 👎
+5
+
+
+I hope you reject this PR and also the idea that Node.js needs to support multiple engines. Please don't make Node.js a battleground of competing Javascript engines like the Browser has become. We want a runtime that works the same everywhere, not another problem-vector to consider.
+
+
+This PR is not useful to anybody but Microsoft and I doubt it will even be useful to them because I feel like next to nobody is going to target the Chakra version of Node.js. Node.js can run on any OS already. If they can't get it running as-is on their OS, then they should fork it or fix their OS.
+
+
+I say this as a Windows user, an MSDN subscriber and a person who uses Visual Studio to write all of my Node.js code...I have nothing against Microsoft.
+
+
+>>>deathtrip, 👎
+4
+
+
+I think the PR should be rejected. It only benefits microsoft, and works only on windows. If this gets accepted it will give microsoft a way to create incompatibilities between the two engines, and disrupt the ecosystem. As they've done so many times in the past.
+Basically they want to use the community to help them push their W10 IoT.
+And no, it's not "a different microsoft", just look how they use their market position to push Win10 down everyone's throat.
+
+
+>>>zchrykng, 👍
+4
+
+
+I do find it slightly ironic that people assume bad faith from Microsoft, while being complete beholden to another tech giant (Google). I am not a big fan of either company and don't particularly trust either one. So would like to expand the number of different engines node can run on so no one company can seriously disrupt the project's viability.
+
+
+
+
+On Jan 23, 2016, at 5:24 PM, deathtrip notifications@github.com wrote:
+
+
+I think the PR should be rejected. It only benefits microsoft, and works only on windows. If this gets accepted it will give microsoft a way to create incompatibilities between the two engines, and disrupt the ecosystem. As they've done so many times in the past.
+Basically they want to use the community to help them push their W10 IoT.
+And no, it's not "a different microsoft", just look how they use their market position to push Win10 down everyone's throat.
+
+
+—
+Reply to this email directly or view it on GitHub.
+
+
+
+
+>>>ghost, Other
+
+
+At least one good outcome would be: abstraction of JS engine in node.js runtime, aka evolution, so down the road, node.js will be able to use the available JS engine on system, rather than statically compile v8.
+
+
+For consumers and end users, there is not much benefit at this point.
+
+
+-1 if we will ever have to detect engine in our code in any situation; which can only be guaranteed if there is an intermediate abstraction interface in place, which every engine must implement.
+
+
+>>>waynebloss, 👎
+1
+
+
+I don't think Node.js is completely beholden to Google since v8 is open source, but the real disruption here is this pull request IMO. It's asking the project to expend effort now (and continually in the future) to do something that I'm sure the vast majority of Node.js users do not care about.
+
+
+If we can brush politics aside, I think that's what it boils down to. If not too many people care about this feature, then why do it at all?
+
+
+>>>jakesays, 👍
+2
+
+
+@waynebloss Microsoft has committed to porting Chakra.
+
+
+For those who say this PR only benefits Microsoft, you're being a bit myopic. Having multiple engines adds many benefits, and node will be the better for it.
+
+
+@runvnc Can you explain how, in this situation, Microsoft could in any way cause node to fail?
+
+
+>>>zchrykng, Other
+
+
+@waynebloss Yeah I was being a little melodramatic with that. I have no disagreement with the "this will be a lot of work and it is not needed or is not the time" argument. I just felt the need to comment on the paranoia that appeared to be going around.
+
+
+>>>jasnell, Owner
+
+
+Please keep the conversation civil and focused.
+
+
+The process we follow here is well defined. Whether or not this PR or some
+variation of it lands will be determined by consensus of the collaborators.
+While discussion of the technical merits of the proposed change are
+welcome, personal arguments are not. We all have opinions, let's please be
+respectful of them.
+On Jan 23, 2016 6:02 PM, "Yonas Yanfa" notifications@github.com wrote:
+
+
+
+
+@gufi https://github.com/gufi Who are you to lecture me about what will
+kill an open source project? What are your credentials?
+Just because someone dumps a bunch of code at your doorstep doesn't mean
+you owe it to them to accept it into your codebase.
+Microsoft can fork nodejs and keep this PR to themselves, since that's who
+it benefits. This PR is not for our benefit, it's for theirs.
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>thedark1337, 👍
+2
+
+
+This doesn't strictly benefit Microsoft though. It's the beginning towards a future Node.js where its not coupled to V8 and you're allowed a choice of either Chakra or any other engine. I get that Microsoft in the past has had a bad reputation for many many things, but that doesn't mean that all they do is bad. I for one welcome this change to Node.js and would love to see it progress further.
+
+
+>>>obastemur, Contributor
+
+
+I don't know if it's already mentioned on this thread or not. ChakraCore is actively being ported to Linux/OSX (guess it's for Node.JS? what else it could be..). (see https://github.com/Microsoft/ChakraCore/tree/linux)
+
+
+@jasnell
+
+
+
+
+Please keep the conversation civil and focused.
+
+
+
+
+Definitely agree. Politics and personal issues aside, all the hard work and commitment done should deserve at least this much..
+
+
+>>>kobalicek, Other
+
+
+Some people here have really no clue what API neutrality could provide in the future. It's a good direction and I think it's not even related to chakracore, MS started this discussion by submitting the PR, but the problem was here before.
+
+
+Imagine that you use node to build desktop apps, or mobile apps, and everything you need to ship is your own code + node that uses native JS engine the target OS provides. Or, if the OS has already node installed, you can just ship the package :) This is a huge step forward and it's not really MS related.
+
+
+>>>MartinJohns, Other
+
+
+@obastemur:
+
+
+
+
+ChakraCore is actively being ported to Linux/OSX (guess it's for Node.JS? what else it could be..).
+
+
+
+
+It is very easy to integrate ChakraCore into your .NET Core applications. .NET Core is already working across platforms, including Linux and OSX.  By porting ChakraCore to Linux and OSX you can now easily embed a JavaScript engine into your .NET Core applications, working across all major platforms.
+
+
+>>>Codelica, 👎
+1
+
+
+I think the idea of API neutrality is noble, but that's not really what this specific PR is about -- at least not in its current form. (Unless you consider the current Node/V8 interface that abstraction.)
+
+
+As a Node user, I'm concerned about the confusion and fragmentation that would certainly come with this being part of the "main" branch without careful consideration.  After finally being clear of the IO.js / Node split, I'd hate to see the community reaction to engine specific (Windows only) NPM packages or handling engine specific package issues which maintainers may not even have the ability to investigate (as Windows currently only accounts for about 1/3 of Node downloads).
+
+
+I understand what MS has to gain here.  Increased visibility in the Node community, an inferred approval of their JS engine, a PR opportunity, more eyes and use of their code, etc.  What I'm not sure about is what Node really gains right now.  As far as I can tell it would just be a second JS engine option for Windows and access to a handful of Windows supported IoT devices (which can't run the current V8 Node?).  Language features like async/await are already possible via Babel, and performance doesn't seem like a differentiator at the moment.
+
+
+I'm definitely not saying that Node should only be married to V8, but I do think a few things should be in place before opening the doors to other engines.  Like a defined abstraction layer (even if that's initially based on the V8 implementation, assuming that's an option, i have no idea :) ) and some minimal set of "requirements" for engines to be considered for core Node inclusion.  Personally, I think any JS engine that's a core option should be required to support Linux, OS X, and Windows.  IMO broad platform support is one of Node's biggest strengths currently, and it keeps the playing field level.
+
+
+So why not take some time to define the abstraction layer, think about what might need to happen on the NPM front, and let MS produce their Linux (and OS X ?) version(s).  At that point I think it would be better received by the community.  If somehow MS could also increase Windows' MAX_PATH size while they're at it, people might even cheer. ;)
+
+
+>>>ghost, Other
+
+
+@Codelica, folks are already on it: nodejs/roadmap#54.
+
+
+>>>nooks, Other
+
+
+-1 http://www.viva64.com/en/b/0370/
+
+
+Mod edit: This links to a post discussing static analysis of Chakra's C++ Source .
+
+
+>>>trendzetter, 👎
+1
+
+
+-1
+other platforms are not first class. windows centric is not open.
+
+
+>>>MartinJohns, 👍
+1
+
+
+@nooks How is this an argument against the PR? Every software has bugs, NodeJS or the V8 engine are no exception in this regard. I'm sure if you let a static analyzer run over those projects there will be plenty of mistakes too. Besides that, these mistakes are surely already fixed (or will be shortly).
+
+
+@trendzetter Microsoft is committed to bring ChakraCore support for the Linux and OSX platform as well. This is nothing Windows centric. This was mentioned several times already.
+
+
+>>>Qard, Member
+
+
+I don't really get the argument that Microsoft doing this for their own benefit is somehow bad. The same could be said about everyone contributing to node. We work on node because it benefits our careers. Is that bad too?
+
+
+The fork people have suggested is what Microsoft would've done if they didn't care about us. They absolutely have the capacity to be able to maintain their own fork, if they felt that served their interests best. But recently, Microsoft has been discovering the power of open source and realizing how much more they benefit by enabling the use of their tech, rather than enforcing it.
+
+
+While I'm still a bit cautious about how that will all play out long-term, for now, I trust them to do what's best for the community because that is also what's best for them.
+
+
+>>>Fishrock123, Owner
+
+
+I'm fairly certain these Microsoft points are moot. We already have had Microsoft helping us for years in the form of @orangemocha.
+
+
+The larger question is already being discussed in nodejs/roadmap#54 -- that is, are we a V8-centric platform, or are we engine agnostic?
+
+
+(If you comment about that here, I will remove your comment. Move it to that thread.)
+
+
+>>>seishun, Member
+
+
+Can someone name any disadvantage of this being maintained in a separate fork?
+
+
+>>>jakesays, 👎
+1
+
+
+@trendzetter How is windows centered not open? That makes no sense whatsoever.
+
+
+>>>macalinao, Other
+
+
+fragmentation
+
+
+On Sun, Jan 24, 2016 at 11:24 AM Nikolai Vavilov notifications@github.com
+wrote:
+
+
+
+
+Can someone name any disadvantage of this being maintained in a separated
+fork?
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>jakesays, Other
+
+
+@seishun Yes - it is always best for a project to maintain one fork. It keeps the community focused and limits fragmentation and compatibility issues.
+
+
+>>>jakesays, Other
+
+
+@Qard I agree. I'll bet a paycheck that Google developed V8 with their own interests in mind.
+
+
+>>>abdulhannanali, Other
+
+
+
+
+
+>>>trendzetter, 👎
+1
+
+
+@MartinJohns the point is microsoft trying to make windows first class, linux second class (windows works now, linux will work but cannot now if ever equally, no guaranties. end game; fix it yourself). Also their bringing in of their pushers doesn't help much to their reputation for astroturfing.
+Microsoft is only out to promote its closed source products. we don't need a closed source oriented "open sauce" to burden the community of open source projects.
+
+
+>>>JureUrsic, Other
+
+
+http://www.ecis.eu/documents/Finalversion_Consumerchoicepaper.pdf
+Read this document carefully... Do you see the pattern? Please don't give me that "Microsoft being a whole new company" bullshit...
+Before merging the PR, I think Microsoft should first make Chakra fully Open Source and cross platform supported...
+
+
+>>>deathtrip, 👎
+1
+
+
+It should be decided first whether node will be VM neutral or not. Without that decision, even considering this PR makes no sense. And as was said before, they should make the whole thing work equally on all platforms, not make systems other than their own second class citizens.
+
+
+>>>abdulhannanali, Other
+
+
+@kunalspathak i support you this merge should happen. don't worry about the trolls here 👍
+
+
+>>>Qard, Member
+
+
+@trendzetter Microsoft runs Linux on Azure, which would be a popular place to use node, so I'm sure they'll be actively supporting it. They have already begun work on Linux support themselves. The only reason it's not available at the time of open sourcing is because the primary function of Chakra is in the Edge browser, so they focused on getting it working there first, then open sourced it as soon as possible.
+
+
+Also, looking to the community for help with expanding platform compatibility is totally fine and something node and V8 also do. Several platforms node is available on are provided by IBM, and the same has happened with fixes to V8 to support those platforms.
+
+
+Large scale open source does not exist in a vacuum. There's always corporations in the background supporting it in one way or another, whether it be paying wages of contributors or donating directly to a foundation for it. An open source project does not get big without a business need for it.
+
+
+>>>alexsaves, Other
+
+
+Very cool. I think its really meaningful to test the extensibility of Node by integrating third party interpreters like this. Super enthusiastic about this.
+
+
+>>>rumkin, Contributor
+
+
+So we should to decide several separated questions:
+
+
+
+
+Does we need ABI? And what is it's goal to isolate v8 or to isolate abstract javascript engine?
+
+
+What does Nodejs wins with ChakraCore and is it so important?
+
+
+What does Nodejs loose without ChakraCore and is it critical for now?
+
+
+Which engine is primary and which is fully dependant until we got ABI?
+
+
+Why do we need ChakraShim in node.js repo instead of separated fork if it only a shim?
+
+
+How does one permanent breaking API would be fixed with another for another engine?
+
+
+And rhetorical question. Why does not Microsoft release working project forked from node at first and commit not fully supported and a half working shim? And why some node foundation members support that out of standard and logic decision?
+
+
+
+
+>>>jakesays, Other
+
+
+@JureUrsic Exactly how is chakra core NOT open source? The full source code is available. It is licensed under MIT. It doesn't get more open than that.
+
+
+@trendzetter Microsoft is a Windows shop (obviously) - they develop on windows. Why do you expect them to release anything else?
+
+
+Honestly all the complaints/rants about the motivation of Microsoft with respect to Chakra are irrelevant, full of subjective and poorly thought out opinions.
+
+
+>>>waynebloss, Other
+
+
+@rumkin Good summary of the points here but I'm having trouble parsing or confirming some of your English. Specifically:
+
+
+
+
+
+
+How does one permanent breaking API would be fixed with another for another engine?
+
+
+
+
+
+
+I believe you're referring to @trevnorris ' question ("What happens when v8 needs to be updated and the API doesn't match the Chakra shim? Will we need to hold off until the shim also has an update?") Correct?
+
+
+
+
+
+
+...And why some node foundation members support that out of standard and logic decision?
+
+
+
+
+
+
+I feel that we should probably focus on the technical and avoid this, but just to be thorough - I want to let you know that the above was unclear. Are you asking why some members of the CTC support the shim against "standard decision logic"? I'm not aware of any such thing, but I'm sure that I do not know what your last sentence means.
+
+
+Thank you.
+
+
+>>>ghost, 👍
+1
+
+
+So everyone who was holding grudges against Microsoft for past three decades found this pull request as an opportunity to express themselves. Since it's an open season, I hope some of the "core" InternetExplorer guys are following this thread and seeing how much pain and agony they caused in past which they are continuing with Edge. One thing Microsoft surely haven't learned in past 40 years is how to build a decent web browser with features which people actually want.
+
+
+>>>kobalicek, 👍
+1
+
+
+Why some people don't understand "Please keep the conversation civil and focused"?
+
+
+>>>rumkin, Contributor
+
+
+@waynebloss, thank for attention and sorry for bad english )
+
+
+
+
+Yep, that's mean the same.
+
+
+I mean that we probably should not include semi-working code in repository. There is no any reason to use new engine right now. MS should make a fork (maybe call it like MS Node.NET) and support it. This is a standard way of extension which will not freeze nodejs development at some time and make clear all differences betweem the projects. Other part of the question is why some users are trying to call Chakra shim an ABI? And if we want to get Unified Javascript Engine API than we should discuss this but not a shim. And we should to discuss this with several engine developers to get the working draft or scratch of what it should looks like to avoid breaking changes in near future.
+
+
+
+
+Hope it's now clear to understand.
+
+
+>>>MartinJohns, 👍
+1
+
+
+@trendzetter Would you please mind to stop with this irrational Microsoft hate and be factual instead? You are just repeating your points with no additional information, points that have been pointed out to be moot already.
+
+
+>>>MartinJohns, Other
+
+
+I would suggest to close further discussions on this PR until nodejs/roadmap#54 brought up results.
+
+
+>>>rumkin, Contributor
+
+
+@MartinJohns But how does nodejs/roadmap#54 actually relate to discussion. ChakraShim is not an ABI. And if we talking about Chakra than it should sounds like "Do we need a zoo of engines".
+
+
+>>>rvagg, Owner
+
+
+You're not really adding value here @trendzetter and your comments are starting to get insulting. If you have trouble moderating yourself then we can help you with that.
+
+
+Same goes for anyone else having trouble being constructive in this thread; this is not your personal blog and there are people trying to get things done and make objective decisions around here and we could do without the silly ranting.
+
+
+>>>rvagg, Owner
+
+
+@trendzetter thankyou, your concerns are noted, along with others who have been expressing similar and opposing views on this particular topic. There is obviously a lot of complex context that feeds into any decision around this pull request.
+
+
+However, please, let's draw a line under discussion regarding Microsoft, many of us have heard most of these arguments and are aware of both extreme points of view. Continuing to repeat them here will only contribute to you being further marginalised from the only debate that actually matters here and will have no impact on the end decision. It's all been said already.
+
+
+Thankyou for your input, however.
+
+
+>>>rvagg, Owner
+
+
+We've decided to lock this thread, for a few days at least, to put a damper on the unproductive chatter before it gets fully out of control.
+
+
+If you'd actually like to engage in productive discussion regarding Node.js being tied to V8 or becoming something closer to VM neutral, then please head over to nodejs/roadmap#54. Please try and stay civil and if you don't have anything helpful to add, just observe (there's a Subscribe button on the side).
+
+
+>>>kunalspathak, Contributor
+
+
+I have updated the changes in the PR to incorporate as much feedback as possible and restructured the commits. I have also updated the PR description to reflect the new commit ordering. Thanks!
+
+
+>>>jasnell, Owner
+
+
+@kunalspathak +1, it may take a bit of time to review but I'll try to get some comments in by next week. Thank you for being patient!
+
+
+>>>rvagg, Owner
+
+
+Deleted comment by @runvnc. Please take it to your blog, this PR is for technical discussion at the PR at hand. Discussion about whether Node.js should even head down a multi-VM route are taking place at nodejs/roadmap#54. Off-topic rants should be taken to tumblr, wordpress, or some other forum where you can engage in focused discussion rather than this PR. Please have a bit of respect for the collaborators of this project.
+
+
+>>>Qix-, Other
+
+
+@rvagg I thought it was a pretty valid point, though it does belong in the roadmap discussion. Suggesting legitimate concerns be taken to Tumblr is a bit crass, though.
+
+
+
+
+
+
+;##D66 Why is the change not being run agianst automated tests in CI?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+/ontopic is there a reason this isn't being run against the automated tests in CI?
+
+
+>>>MrRio, Other
+
+
+I haven't be paid by Microsoft for the record. 😂
+On Sat, 30 Jan 2016 at 09:27, Josh Junon notifications@github.com wrote:
+
+
+
+
+@rvagg https://github.com/rvagg I thought it was a pretty valid point,
+though it does belong in the roadmap discussion. Suggesting legitimate
+concerns be taken to Tumblr is a bit crass, though.
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+
+James Hall
+Director
+Parallax Agency Ltd
+M. 07894950320
+
+
+
+
+>>>jbergstroem, Member
+
+
+
+;##D67 Tests have already been run
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D66
+;##SEN NEU
+
+@Qix-: Collaborators (inc me) have already run tests (see above). We're counting 50+ fails on Windows, Linux being worse and SmartOS, FreeBSD not working at all. I treat this PR as a door opener for nodejs/roadmap#54.
+
+
+>>>hansdunk, 👎
+2
+
+
+@jbergstroem
+
+
+
+
+We're counting 50+ fails on Windows, Linux being worse and SmartOS, FreeBSD not working at all.
+
+
+Collaborators (inc me) have already run tests (see above).
+
+
+
+
+This must be a joke. ChakraCore does not even compile on Linux yet...
+
+
+@rvagg You have a bigger responsibility than deleting peoples' messages here. Starting with answering 'How come this PR can be considered seriously at this very point' ?
+
+
+Forget about Microsoft is this or that. There are very good managers at Microsoft, and the bad ones. Like in any other place. The 'project management' behind this PR Has clearly failed. They supposed to wait, fix their issues and start the discussion first.
+
+
+Node.js was supposed to be governed by community. Sadly, this PR shows otherwise.
+
+
+>>>waynebloss, Other
+
+
+@hansdunk Deleting comments that are doing nothing more than speculating on Microsoft's motives is a pretty important job to do. We already have a good, objective, drama-free summary of the basic technical considerations that need to be made here (with some points clarified a few comments down) and discussion on those points has begun in other threads already.
+
+
+
+
+Forget about Microsoft is this or that.
+
+
+
+
+Exactly. I read the deleted comments if I in fact received them all in my email...they were both walls of text containing nothing more than rumors and pure speculation about Microsoft's business and marketing practices.
+
+
+
+
+The 'project management' behind this PR Has clearly failed. They supposed to wait, fix their issues and start the discussion first. Node.js was supposed to be governed by community. Sadly, this PR shows otherwise.
+
+
+
+
+Don't you think that's a bit dramatic? It's a Pull Request which has led to a discussion. It's not the end of Node.js being governed by its community. I'm not even sure how it's a failure on anybody at Microsoft's part other than the fact that it might be a bad idea to have a Chakra-specific shim in Node.js (for the record - I think it's a bad idea and that a non-Chakra specific ABI would be a better idea).
+
+
+>>>MartinJohns, 👍
+2
+
+
+It's always hilarious when people claim some is bought by Microsoft or they're working against the community, just because their own opinion is not reflected. The community is large and this is a sensitive subject, there are people on both sides and on middle ground.
+
+
+>>>waynebloss, Other
+
+
+@hansdunk Here's the discussion. We're in it. Sorry it didn't happen according to the exact timeline that you were expecting. :( Yes, it's still dramatic that you think Node.js community governance is over because one pull request (from a community member) happened before you thought it should.
+
+
+
+;##D68 Is it a good idea for Node.js to have an ABI for the JS engine?
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Here's one of the technical bits that has been discussed here (among others): Do you think that it's a good idea for Node.js to have an ABI/facade for it's Javascript engine or should it be v8 only?
+
+
+The core technical committee is having a discussion about this PR. Did you read the notes from their last meeting?
+
+
+All you're doing is flinging accusations about and not really contributing anything at all. Please stop doing that.
+
+
+>>>Qix-, 👎
+1
+
+
+Seeing as how not one collaborator has appeared to consider the negatives of this PR, it's understandable that people are a little uncomfortable.
+
+
+
+
+
+
+;##D69 Isn't there a CI integration that allows to see test results?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@jbergstroem okay, but is there not a CI integration added to Github to be checking PRs automatically where test results can be viewed by the public?
+
+
+>>>benjamingr, Member
+
+
+@Qix- have you read the TC meeting notes or the issue and discussion about accepting a second engine? That discussion is held and a lot of people are expressing their opinion - they're just not doing it on the pull request itself.
+
+
+>>>jokeyrhyme, ❤️
+2
+
+
+Fun self-censorship exercise: swap "Microsoft" for "Google", and "Chakra" for "v8". If your sentence is still true then don't bother posting it.
+
+
+>>>ghost, Other
+
+;##D70 SHould wait for Chakra to become more realiable and consiser other platforms
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+My vote is also to wait for Chakra becoming reliable cross-platform product first, before considering this work.
+Meanwhile, it would interesting if Gecko JägerMonkey (Firefox) guys are interested, who happen to have widest/maturest coverage when it comes to cross platforms!
+Then there is v7 (https://github.com/cesanta/v7) for embedded systems (known for "whole JS engine in one C file!" v7.c) that will also bring value to the mix due to its unique platform support (imagine your washing machine or fridge running node.js over a lightweight JS engine without v8/Google'ism inside).
+
+
+>>>rvagg, Owner
+
+
+We'd like to not have to re-lock this thread but will do so if necessary. Comments from a user who appears to have created a throw-away account simply for the purpose of posting derailing comments here have been removed.
+
+
+I personally really hate deleting comments and I'm not even going to argue that there aren't legitimate discussion-worthy points being made in the comments being deleted. However, discussion that deviates significantly from technical discussion on this PR and that are intended to continue tangential argumentation will be removed. Please find a new forum for these posts, nobody wants to deny you your opinions, this just isn't the place for them and you're hurting Node.js in general by serving as a distraction from all of the productive things we could otherwise be doing.
+
+
+>>>thefourtheye, Contributor
+
+
+Nit: from here onwards everything is not strictly in ascending order
+
+
+>>>kunalspathak, Contributor
+
+
+Thansk @thefourtheye  for pointing it out. However since these sources are pulled from ChakraCore repo, feel free to open an issue on ChakraCore.
+
+
+>>>jbergstroem, Member
+
+
+@Qix- not yet since I'd have to fork this PR and add commits since it doesn't change vm by default. I opted for opening one of our windows slaves and testing it there instead.
+
+
+>>>darth10, Other
+
+
+A fork sounds like a much better option IMHO.
+On 02-Feb-2016 3:27 am, "Johan Bergström" notifications@github.com wrote:
+
+
+
+
+@Qix- https://github.com/Qix- not yet since I'd have to fork this PR
+and add commits since it doesn't change vm by default. I opted for opening
+one of our windows slaves and testing it there instead.
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>matthiasg, Other
+
+
+
+;##D71 A fork would quickly be left behind if node was supporting more engines
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+If Node were more open to other engines the auto build process could be configured to automatically produce more builds with different engines. As a totally independent fork would likely stay behind quickly and thus there would be no incentive to use it even.
+
+
+As chakra being windows only. If some microprocessor comes out which were to require a modified version of v8 (e.g stripped down etc) I would consider this the same thing. Developers could use node everywhere, but there might be an alternative js engine under the hood which might work better on their platform. Whether they could use native modules is of course not necessarily guaranteed for all platforms. That is sadly already the case anyway.
+
+
+
+;##D72 A form with automated build seems more logical
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D71
+;##SEN NEU
+
+Actually having chakra or any other engine in node would not be helpful. Fork with automated build seem more logical to me.
+
+
+>>>isiahmeadows, Other
+
+
+
+;##D73 This is another attempt to abstract Node from the runtime
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SENNEU
+
+@matthiasg The tone I drew from this (and some discussion elsewhere) is that this is yet another attempt to abstract Node from the runtime it uses. It's not unheard of, and it's even being done for Chrome extensions and the Java Runtime with Nashorn. I think it being an option in core (even if it means full vm module support is limited to one or more specific platforms) would just further legitimatize these efforts, as well as making future work far easier.
+
+
+>>>orangemocha, Member
+
+
+
+;##D74 These changes will be moved to a separate repository
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+At yesterday's CTC meeting, it was resolved to let these changes live in a separate repository under the nodejs/ organization. The rationale behind this decision (or at least my interpretation of it) is that we want to encourage experimentation with this project, yet at this time we don't want to put any additional burden on the collaborators of the main Node.js project to maintain the chakracore version. In particular, issues about the chakracore version should be directed to the new repo (name TBD). Of course, people interested in contributing are more than welcome to do so in the new repo. There is also a @nodejs/chakra team that can be mentioned within the nodejs org.
+
+
+I suggest that we keep this PR open to continue providing feedback to the actual code changes, which I think would be welcome by the authors. Then instead of merging the changes into this repo, we can push them to the new repo.
+
+
+@kunalspathak , can you add two changes to the README:
+
+
+
+
+How to build node with chakracore. This can be a part of nodejs/node-chakracore@b6e81a2
+
+
+A visible notice that tells users to file node-chakracore specific issues into the node-chakracore repo rather than nodejs/node. I would keep this as a separate commit.
+
+
+
+
+As usual, please keep the discussion constructive.
+
+
+cc: @nodejs/ctc
+
+
+>>>jasnell, Owner
+
+;##D75 Chakra might be added to the builds in CI
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I would also point out that it's possible that we could include the chakra
+builds in CI and regular nightlies.
+On Feb 4, 2016 6:25 AM, "Alexis Campailla" notifications@github.com wrote:
+
+
+
+
+At yesterday's CTC meeting #5058,
+it was resolved to let these changes live in a separate repository under
+the nodejs/ organization. The rationale behind this decision (or at least
+my interpretation of it) is that we want to encourage experimentation with
+this project, yet at this time we don't want to put any additional burden
+on the collaborators of the main Node.js project to maintain the chakracore
+version. In particular, issues about the chakracore version should be
+directed to the new repo (name TBD). Of course, people interested in
+contributing are more than welcome to do so in the new repo. There is also
+a @nodejs/chakra https://github.com/orgs/nodejs/teams/chakra team that
+can be mentioned within the nodejs or g.
+
+
+I suggest that we keep this PR open to continue providing feedback to the
+actual code changes, which I think would be welcome by the authors. Then
+instead of merging the changes into this repo, we can push them to the new
+repo.
+
+
+@kunalspathak https://github.com/kunalspathak , can you add two changes
+to the README:
+
+
+
+
+How to build node with chakracore. This can be a part of Microsoft@
+b6e81a2
+nodejs/node-chakracore@b6e81a2
+
+
+A visible notice that tells users to file node-chakracore specific
+issues into the node-chakracore repo rather than nodejs/node. I would keep
+this as a separate commit.
+
+
+
+
+As usual, please keep the discussion constructive.
+
+
+cc: @nodejs/ctc https://github.com/orgs/nodejs/teams/ctc
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>thefourtheye, Contributor
+
+
+
+
+it was resolved to let these changes live in a separate repository under the nodejs/ organization
+
+
+
+
+Will that repo also adhere to our Node.js CoC, Contribution, Moderation and other procedures we follow?
+
+
+>>>jasnell, Owner
+
+
+Yes, it would fall under the same policies as the main repo. I imagine a
+chakra team would be created and eventually a WG would emerge.
+On Feb 4, 2016 6:44 AM, "thefourtheye" notifications@github.com wrote:
+
+
+
+
+it was resolved to let these changes live in a separate repository under
+the nodejs/ organization
+
+
+Will that repo also adhere to our Node.js CoC, Contribution, Moderation
+and other procedures we follow?
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>orangemocha, Member
+
+
++1 for a WG to be formed around this, and keeping the policies in line with the main repo as much as possible. In the interest of relieving Node's collaborators from additional duties, we might want to make some slight modifications to the collaborator guide to replace "collaborators" with "WG members".
+
+
+>>>mikeal, Owner
+
+
+
+
+Forming a WG
+
+
+
+
+For organizational purposes this may make sense but there's one thing that troubles me about it. The goal of the WG will be to get this eventually merged into Core, if contentious issues come up in that repo it would be best to escalate those to the CTC, not just to the WG membership. This would avoid decisions that are controversial being made in that repo that will make it difficult to eventually merge the work into core.
+
+
+>>>jasnell, Owner
+
+
+Agreed. Couldn't that be put into the WG charter tho? :-)
+
+
+On Thu, Feb 4, 2016 at 10:48 AM, Mikeal Rogers notifications@github.com
+wrote:
+
+
+
+
+Forming a WG
+
+
+For organizational purposes this may make sense but there's one thing that
+troubles me about it. The goal of the WG will be to get this eventually
+merged into Core, if contentious issues come up in that repo it would be
+best to escalate those to the CTC, not just to the WG membership. This
+would avoid decisions that are controversial being made in that repo that
+will make it difficult to eventually merge the work into core.
+
+
+—
+Reply to this email directly or view it on GitHub
+#4765 (comment).
+
+
+
+
+>>>orangemocha, Member
+
+
+Agreed. I was suggesting that we replace collaborators with WG members but still allow for CTC escalation for controversial issues. We should probably also promote some level diversity in the WG membership so that controversy can be had 😄
+
+
+>>>jasnell, Owner
+
+
+I'd also suggest that changes in the repo be limited to only those directly impacting the implementation of the chakra support. Anything that can be upstreamed into the main repo should be.
+
+
+>>>Qix-, Other
+
+
+
+
+The rationale behind this decision (or at least my interpretation of it) is that we want to encourage experimentation with this project, yet at this time we don't want to put any additional burden on the collaborators of the main Node.js project to maintain the chakracore version.
+
+
+
+
+
+
+
+
+
+I would also point out that it's possible that we could include the chakra builds in CI and regular nightlies.
+
+
+
+
+Perfect. This is what should be happening. Happy this is how it turned out 👍
+
+
+>>>FezVrasta, Other
+
+
+
+;##D76 Isn't everyting useless until ChakraCore is ported to all platform supported by V8?
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is it just me, or till ChakraCore is not ported to all the platforms supported by V8, all this stuff is completely useless?
+
+
+I can't see how you could release a ChakraCore version of Node that works only on Windows, it would mean an hell of fragmentation...
+
+
+>>>orangemocha, Member
+
+
+Update: we are in the process of transferring https://github.com/microsoft/node to nodejs/node-chakracore. Once that's done, I'll create an issue in that repo inviting collaborators to a newly formed node-chakracore WG, which will act as the repo collaborators.
+
+
+In the meantime, if reviewers of this PR are comfortable giving it a 'LGTM as a starting point for the new repo', we can make the changes of this PR the head of the chakracore-master branch. Otherwise, we can resume the review process in the new repo.
+
+
+>>>thefourtheye, Contributor
+
+
+
+
+LGTM as a starting point for the new repo
+
+
+
+
+
+;##D77 It would be better if there was a green CI run
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I think I would be a little confident if we had a green CI run.
+
+
+>>>orangemocha, Member
+
+
+
+;##D78 The regular CI doesn't test chakracore
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D77
+;##SEN NEU
+
+@thefourtheye assuming you mean on the regular CI, which doesn't test the chakracore build. Green status on the chakracore build is still work in progress.
+
+
+https://ci.nodejs.org/job/node-test-pull-request/1606/ shows a merge conflict. @kunalspathak can you rebase the PR onto the current master?
+
+
+>>>mikeal, Owner
+
+
+BTW, I don't think a straightforward "repo transfer" will work in GitHub because that repo is in the same fork network as one already in this repo. That means you'll have to essentially pull down the repo and all branches and push it to a brand new repo in this org. It's annoying, and you'll lose the issues, but I don't know of a way around it.
+
+
+>>>orangemocha, Member
+
+
+@mikeal, thanks for the suggestion. We were actually able to work around it but removing the fork link first (had to contact GH support for it).
+
+
+>>>mikeal, Owner
+
+
+@orangemocha awesome! good to know that is an option, this will probably come in useful again in the future :)
+
+
+>>>orangemocha, Member
+
+
+On second thought, rebasing here is not necessary, as we can push to the new repo the master that this PR is up-to-date with, and deal with the conflict in the next master -> chakracore-master integration.
+
+
+Here's a CI run with no rebasing: https://ci.nodejs.org/job/node-test-commit/2175/. It shows 2 failures on ARM (linux). Investigating whether these could be legit or flaky. /cc @nodejs/testing
+
+
+>>>Trott, Owner
+
+
+@orangemocha Those are both known flaky tests that are marked as flaky in current master. One of them has a fix ready to go in a PR that might land in another day or three. The other one is probably Flaky Test Public Enemy Number One once that PR lands.
+
+
+>>>orangemocha, Member
+
+
+Thanks for clarifying that @Trott ! I guess that means that the CI run looks good for this PR.
+
+
+>>>Trott, Owner
+
+
+@orangemocha Yes. The TL;DR of my comment is: Those are known flaky tests. The CI run looks good.
+
+
+>>>kunalspathak, Contributor
+
+
+
+
+The CI run looks good.
+
+
+
+
+Can someone sign off on this PR then, so we can go ahead and move the repo?
+
+
+// cc: @thefourtheye, @silverwind, @jepler, @Fishrock123, @benjamingr , @TooTallNate, @jasnell
+
+
+>>>rvagg, Owner
+
+
+@orangemocha I think we're good to go and you should have the right access level to pull it off.
+
+
+I'd like to suggest a couple of things:
+
+
+;##D79 The new repo should be kept in sync with nodejs/node as much as possible
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Keep it in sync with nodejs/node as much as possible so it can be compared at any time by anyone who adds it as a remote to their local clone. Either keep this PR open with the changes (which I think you were suggesting) or keep an equivalent PR open there with the changes. The aim is to get it to a point where we can actually make a decision about merging it or not rather than pursuing it as a separate project indefinitely (at least that's the aim right now).
+
+
+Place a notice at the top of the README on the default branch of the new repo that clearly states that it is a work in progress, not an officially endorsed branch of Node.js and maybe link back to this issue. We need to follow a process that doesn't presume that decisions have been made that have actually not, so far all that the CTC has offered is a way to make progress and I imagine we'd get a lot of upset people commenting if it looked like we'd already pulled the trigger on this.
+
+
+
+
+>>>orangemocha, Member
+
+
+Thanks for the suggestions, @rvagg.
+
+
+;##D80 The master branch will be the same as node, the chakracore changrs will be in a seaprate change
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D79
+;##SEN NEU
+
+Yep, I had a chat with @kunalspathak and the current plan is to have a master branch which is the same as nodejs/node:master and a chakracore-master branch that would be master + the chakracore changes, so the diff would be easily visible, and to keep syncing master from nodejs/node and integrating changes into chakracore-master, ~weekly. Let me know if you have any additional input.
+
+
+Will do.
+
+
+
+
+>>>silverwind, Contributor
+
+
+
+;##D81 process.engine is a better name than process.jsEngine
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Sorry to bikeshed, but I'm still not totally happy with the name of process.jsEngine. I'd rather have it be process.engine for simplicity and it's more neutral towards the es vs js naming debacle.
+
+
+>>>isiahmeadows, Other
+
+
+
+;##D82 process.engine is also more consistent with node
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D81
+;##SEN NEU
+
+@silverwind 👍, but more so for API consistency than that particular reason. Most of the other Node APIs use that convention. It's version, not nodeVersion, for example. Trying not to derail the topic, though.
+
+
+>>>orangemocha, Member
+
+
+
+;##D83 Just process.engine might be ambiguous
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D81
+;##SEN NEU
+
+I am on the opposite camp, I think that engine could be ambiguous. There could be different types of engines in this thing (e.g. libuv could be seen as the I/O engine).
+
+
+Anyway, since the new repo is already live, at this point I think it would be better to open an issue in the new repo and discuss it there. I will follow up.
+
+
+EDIT: opened issue nodejs/node-chakracore#19
+
+
+>>>orangemocha, Member
+
+
+And here is node-chakracore: https://github.com/nodejs/node-chakracore ! Hoping to get lots of contributions 😄
+
+
+>>>kunalspathak, Contributor
+
+
+As @orangemocha mentioned these changes are ported to new repo https://github.com/nodejs/node-chakracore chakracore-master branch. Weekly merge from nodejs.node master and chakrashim changes will happen in this branch of new repo. Feel free to contribute and providing feedback. Thanks everyone for the support!
+
+
+>>>ChALkeR, Owner
+
+
+@orangemocha Does this still need ctc-agenda?
+
+
+>>>orangemocha, Member
+
+
+Removed ctc-agenda. We'll ping the CTC periodically to provide updates and get feedback on the direction of the project. Thank you.
+
+
+>>>itsjavi, 👍
+1
+
+;##D84 We should try to avoid bringing cross-latform incompatibilieties to node by defining a clear common api
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Abstracting Node from the underlying engine sounds good, but we should avoid incompatibilities, otherwise we may start to see packages only working for a specific engine that will not be reusable in the other, so here comes the potential fragmentation.
+Please, let's not bring cross-platform headache to Node, make the differences minimal, defining a clear and common API, that's all I would ask.
+Great job btw.
+
+
+>>>isiahmeadows, Other
+
+
+
+;##D85 Brwoserify/Webpack is making the process of having a common api hard
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D84
+;##SEN NEW
+
+@mjolnic I agree, but I will note that Browserify/Webpack isn't helping that too much. I do feel that NAN might help alleviate much of that concern, though, but it'll have to go through a major version change to account for all the additional abstraction boilerplate it'll need.
+
+
+
+;##D86 Webassembly might have a significant impact on native addons
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I'm also staring intently on WebAssembly, which will also be runnable on future versions of Node, with Chakra and V8 both supporting it, and that may have an even more significant impact on native addons (more than even supporting Chakra IMHO, because of the language difference).
+
+
+>>>jfbastien, Other
+
+
+
+;##D87 Webassembly will just be an opaque blob of js to node
+;##ROLE ETC
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D86
+;##SEN NEU
+
+From Node's POV WebAssembly will look like an opaque blob of JS. You can call into it from JS, it can call out to JS, but the API surface is the same as an opaque JS blob.
+
+
+Eventually WebAssembly may gain access to extra APIs, but the MVP won't have anything special. If / when WebAssembly gains new APIs I think they should be designed with Node in mind, not just browsers.
+
+

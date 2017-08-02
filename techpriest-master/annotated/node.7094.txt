@@ -1,0 +1,1172 @@
+>>>AndreasMadsen, Member
+
+Checklist
+
+ tests and code linting passes
+
+ a test and/or benchmark is included
+
+ documentation is changed or added
+
+ the commit message follows commit guidelines
+
+Affected core subsystem(s)
+
+benchmark
+
+Description of change
+
+I have been rather confused about the benchmark suite and I don't think it is as user friendly as the rest of nodecore. This PR attempt to remove most of the confusion I was facing when I started using it. Primarily it:
+
+removes unused/undocumented files
+
+allows partially setting the benchmarks variables using process arguments.
+
+refactor compare.js such comparing node versions and getting statistical significance is easy.
+
+refactor the plot.R tool (now called scatter) to show a scatter plot with confidence bars.
+
+refactor cli tools such the cli API is more homogeneous.
+
+documents all the tools.
+
+removes the implicit process.exit(0) after bench.end().
+
+uses process.send to avoid most parsing (the benchmark cli arguments haven't changed).
+
+The specifics are documented in the commit messages. Please also see the the new README as quite a lot have changed (be sure the to check my spelling!).
+
+Note that some benchmark takes a very long time to complete, e.g. timers/timers.js type=depth thousands=500 takes 11.25 min. Thus running it 30 times for statistical significance is unreasonable. I suspect the only reason why it is set to so many iterations is to get a small variance, but with the the new compare tool the variance can be estimated instead of being reduced. Thus we can reduce the number of iterations and still get the information we need. But I suggest we do that in another pull request, as is very different discussion.
+
+Motivation (long story): I wanted to benchmark the effect of some async_wrap changes. I went to the benchmark/ directory and read the README. However I quickly discovered that it was primarily about running benchmarks a single time and how to write benchmarks. And most importantly it didn't explain how to compare two node versions. This is now documented in the new README.
+
+I then had to search for the tools myself and discovered the large amount of benchmarks files which where not put into categorized directories. I assumed they where somehow extra significant, but in reality they just appear to be unused. These files are now removed.
+
+After discovering the compare tool, which has the cli API
+
+I was confused about what the --red, --green was and how the node-binary1 and node-binary2 compared, should I write ./node-old ./node-new or ./node-new ./node-old if I wanted a positive improvement factor to signify an improvement? The new compare API is:
+
+After understanding common.js this it was still unclear if the performance was statistically significant different. I tried running the benchmark 5 times and got that 4/5 was an improvement, I was expecting it to have the same performance or be slower. (spoiler: it wasn't significant). The compare.js script now runs the benchmarks many times (30 by default) and there is an R script to analyse the csv results.
+
+At this point I wanted to do a rewrite of the benchmark tools (not the benchmarks themself) and changed a few other things in the process as well. - I'm a mathematician so I care a lot about statistical significance :)
+
+>>>AndreasMadsen, Member
+
+I'm not sure who to cc for this one.
+/cc @Trott as you appear to have made some resent benchmark changes.
+
+>>>Trott, Owner
+
+@nodejs/benchmarking
+
+>>>Trott, Owner
+
+In theory, this sounds fantastic to me! In practice, there's so much about benchmarking that I'm ignorant about, I have to defer to others.
+
+>>>jasnell, Owner
+
+Very nice. @mscdex @bnoordhuis ... any thoughts on this?
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+;##D1 Was this added to prevent v8 from optizing?
+;##ROLE ETC
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU     
+Perhaps this line was added to prevent v8 from optimizing the for-loop away or something (since s wouldn't have been referenced)?
+
+      
+>>>AndreasMadsen, Member
+
+;##D2 It looks like a misunderstandign of how string works
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU 
+Perhaps. With use strict it is definitely broken. Looking at the original commit ( 12a169e - 6 years ago) it seams like it was just a misunderstanding of how strings works. The commit appears to compare strings and buffers, which is not comparable in this case as strings are immutable.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+;##D3 dat.conf[key] may need to be strignified
+;##ROLE ETC
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+data.conf[key] may need to be JSON.stringify()ed for strings with control characters (including newlines, etc.), otherwise you'll end up with messed up output. I had to change this with the existing benchmark runner when benchmarking some http header character validation functions.
+
+      
+>>>AndreasMadsen, edited
+
+        
+I'm happy to do that. I didn't want to change the format in case it is used by some 3th party benchmark monitoring setup. edit: changed to use JSON.stringify() as suggested.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+Same thing here about JSON.stringify()ing data.conf[key].
+
+      
+
+>>>Thread end
+
+>>>mscdex, Contributor
+
+Just briefly looking over it, it mostly seems to look ok except for a few nits.
+
+I did spot a typo in the benchmark: add script for creating scatter plot commit message body.
+
+>>>Thread start
+
+>>>mscdex, edited
+
+        
+There should probably be some explanation (in the help text) about what <type> should be exactly...
+
+      
+>>>AndreasMadsen, Member
+
+        
+are you referring to <type>?
+
+      
+>>>mscdex, Contributor
+
+        
+Yes, markdown cut that part out.
+
+      
+>>>trevnorris, Contributor
+
+        
+iirc there was another one of these in another commit. just to watch out for it.
+
+      
+>>>AndreasMadsen, Member
+
+        
+They should all be fixed. Unless you are talking about the R scripts, but they only take -- arguments.
+
+      
+>>>addaleax, Owner
+
+;##D4 The order of arguments is confusing
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU     
+btw, the first few times I tried running the new I found it very confusing that the type argument needed to appear before the arguments starting with -- (i.e. compare.js --new bla --old blah http did not work). I almost never use CLIs with that argument order, and just showing this usage text wasn’t exactly helpful, either.
+
+You don’t need to change the behaviour, but maybe add a note here about that and for the other scripts where it applies?
+
+      
+>>>AndreasMadsen, Member
+
+        
+Can you elaborate on that note, I think it is very specific, this is the message you get now.
+
+I choose this order, because it could be implemented using less code.
+
+I will try and change the argument order, this appears to cause a lot of confusion for many people, but I would love to understand why.
+
+      
+>>>addaleax, Owner
+
+        
+
+I will try and change the argument order, this appears to cause a lot of confusion for many people, but I would love to understand why.
+
+;##D5 The reverse order of arguments would be better because it's consistent with man pages
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D4
+;##SEN NEU
+If I had to guess, I’d say it’s because that’s the order usually suggested in man pages and --help texts, and maybe because the positional arguments are the ones one is most likely to spend more time editing before hitting enter… idk, maybe there’s more to it.
+
+      
+>>>AndreasMadsen, edited
+
+        
+Oh I understand the order is confusing (it is fixed now). But this is the third comment I got about a missing note, but unless I'm misunderstanding the comment, there is a note just one line below.
+
+      
+
+>>>Thread end
+
+>>>AndreasMadsen, Member
+
+@mscdex thanks. Updated as suggested.
+
+>>>AndreasMadsen, Member
+
+ping
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/comparens/comparison ?
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/uses/use/
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/arguments/argument/
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/and/or/
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, edited
+
+        
+s/uses/use/
+s/from// or s/using//
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/individual/Individual/
+
+      
+>>>AndreasMadsen, Member
+
+        
+search and replace part is the same? Looked it up in oxford, it appears individual is the correct spelling.
+
+      
+>>>thefourtheye, Contributor
+
+        
+First letter should be a capital letter.
+
+      
+>>>mscdex, Contributor
+
+        
+Yes, sorry, that is what I meant. First letter should be capitalized.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/in separate processes/in a separate process/
+
+      
+>>>AndreasMadsen, Member
+
+        
+Thanks. I'm really curious why, do you know the name of the rule?
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/versions/version/
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/mater/master/
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/improvment/improvement/ for all instances in this script and in the new benchmark document changes
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+s/produces/produce/
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, edited
+
+        
+s/be during/be done while/
+This sentence might be totally reworded though, it sounds a bit awkward as-is. Perhaps something like:
+
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+        
+I think this same sentence can be reworded similarly as suggested earlier.
+
+      
+
+>>>Thread end
+
+>>>mscdex, Contributor
+
+/cc @nodejs/collaborators
+
+>>>ChALkeR, Owner
+
+@mscdex What's the semver status of this? Major?
+
+>>>mscdex, Contributor
+
+@ChALkeR I don't know how benchmarks are covered when it comes to that kind of thing. I would guess they are treated like tests or docs since they are not a part of the runtime?
+
+>>>mcollina, Member
+
+I'll go for major, it makes things easier and less complicated.
+
+One thing that is not clear from the document is how the statistical significance is achieved.
+
+>>>AndreasMadsen, Member
+
+@mscdex Thanks for the suggestions, I will update the documentation tomorrow.
+
+@mcollina It runs each the benchmark a given number of times (--runs) using the new and old node binary that is provided to compare.js. Using the R script it then ...
+
+... makes an independent/unpaired 2-group t-test, with the null hypothesis that the performance is the same for both versions. The significant field will show a star if the p-value is less than 0.05.
+
+I think the compare documentation is fairly clear on this. But do tell me how I can improve it.
+
+>>>mcollina, Member
+
+I do not know what a independent/unpaired 2-group t-test is, I think providing a link might be helpful. A link is probably just fine as well.
+I will explode this into its own headline, just because it will be easier to browse.
+
+Also, add this into the PR description.
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+;##D6 Abort runs process.exit(1), doesn't need return
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+        
+.abort() runs process.exit(1). no need for the return. unless you're using it as a visual queue or something.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+        
+are we running lint on these files?
+
+      
+>>>AndreasMadsen, Member
+
+        
+make lint passes so I guess not.
+
+      
+>>>AndreasMadsen, Member
+
+        
+Correction ./benchmark is linted, this is apparently valid. https://github.com/nodejs/node/blob/master/Makefile#L665
+
+      
+>>>trevnorris, Contributor
+
+        
+/cc @Trott @silverwind Didn't think the next line else was allowed in lint. It's not done anywhere else in core, and only 14 places in tests. Has been a rule, to the best of my knowledge, that has been at least informally enforced. There an option for this in the linter?
+
+      
+>>>Trott, Owner
+
+;##D7 We could enforce it with brace-style rule
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+I think we can enforce this with the brace-style rule. We're not currently using it. I'll see about getting a PR together.
+
+      
+
+>>>Thread end
+
+>>>trevnorris, Contributor
+
+did partial review. will finish up later tonight.
+
+>>>Thread start
+
+>>>trevnorris, edited
+        
+not that it matters in this case, but remember that it evaluates .slice(2) every time. nm. i'm ashamed of this comment.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+        
+not sure how much we care about this, but doing the check so simply arguments like --foo=42=bar will pass. May consider switching it to arg.split(/^([^=]+)=/) or something similar.
+
+      
+>>>AndreasMadsen, Member
+
+        
+You are absolutely right. I will keep the original match logic.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+;##D8 Is this a new env?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+;##D9 It should be switched to NODE_PORT
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D8
+;##SEN NEU
+
+is this a new env? if so then i'd suggest we switch it to NODE_PORT. just PORT has greater likelihood of conflicts with existing env variables.
+
+      
+>>>AndreasMadsen, Member
+
+        
+I agree, but current version uses this too: https://github.com/nodejs/node/blob/master/benchmark/common.js#L16
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+;##D10 If http doesn't run long enough to offset hte startput, there's a problem
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+;##D11 Can we start timing from the first message received?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL ELAB D10n
+;##SEN NEU
+I question this. If the http tests don't run long enough to offset the time it took to startup the process then you have a problem. Couldn't you start timing on the first message received from the child process' stdout?
+
+      
+>>>AndreasMadsen, Member
+
+;##D12 The benchmark doesn't directly use process.hrtime()
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D11
+;##SEN NEU
+        
+The benchmark don't directly use process.hrtime() in the http case, but instead the op/sec reported by wrk in the stdout. The childStart stuff is just for reporting how much time the benchmark actually use. This is only used as a side metic, which I found useful for finding benchmarks that uses to many iterations.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+;##D13 Chunk.toString would have less overhead
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+        
+not a lot of data is going through this so don't think it matters, but setEncoding() adds pretty hefty overhead to data events. i don't see why we can't just do chunk.toString() instead.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+        
+do you know the time difference between the final data event and the close event? doubt it's much, but want to remove any static in the test.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+
+;##D14 Why is there a return after process.exit()?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+again, why with the return after a process.exit()?
+
+      
+>>>AndreasMadsen, Member
+
+        
+good question :)
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+;##D15 Using +match[1] would allow it to work even fi the string is in hex/binary
+;##ROLE ETC
+;##INV F
+;##FORM SOLnEW
+;##REL NEU
+;##SEN 
+        
+not that we'd use it, but this'll fail if the string is in hex/binary. instead simply using +match[1] will properly coerce those values.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+
+;##D16 A process should always be spawn to keep measurements uniform
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+i feel like we should always spawn a process in order to keep measurements uniform as possible. just my opinion though.
+
+      
+>>>AndreasMadsen, Member
+
+        
+Good idea
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+;##D17 Why not try to unlink the file?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU     
+why no longer try to unlink the file?
+
+      
+>>>AndreasMadsen, Member
+
+;##D18 The line after bench.end(reads) never executed before
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D17
+;##SEN NEU
+ups, this was from some debugging. But the line after bench.end(reads); never executed before, because it called process.exit(0).
+
+I will update such it removes the file.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>trevnorris, Contributor
+
+;##D19 Why "${confHeader"}?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+"${confHeader}"? did you mean ${confHeader}
+
+      
+>>>AndreasMadsen, Member
+
+        
+No but I understand the confusion. Is this easier to understand?
+
+      
+>>>trevnorris, Contributor
+
+        
+Sorry, still confused. What's in the PR and what you have in your example look like they'll have different output to me. Mind showing me an example of what would be logged?
+
+      
+>>>AndreasMadsen, Member
+
+        
+Here is an example from running ./node benchmark/scatter.js benchmark/arrays/var-int.js, the confusing part is inserting "n", "type" into the header.
+
+
+      
+>>>trevnorris, Contributor
+
+;##D20 It should be using ${confHeader} instead
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D19
+;##SEN NEU
+Okay, what I thought. What confuses me is that the PR uses "${confHeader}" where I would have expected it to look like your alternative suggestion using ${confHeader}. Though I'm not sure why you have text in quotes and are using comma delimited format.
+
+      
+>>>AndreasMadsen, Member
+
+;##D21 CSV requires quotes for strings
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D20
+;##SEN NEU
+The output is a .csv file, which is easy to read from R. CSV usually doesn't require quotes, but if a string contains , quotes must be used.
+
+      
+>>>AndreasMadsen, Member
+
+        
+There is now a csvEncodeValue function which should make the intention clear.
+
+      
+
+>>>Thread end
+
+>>>trevnorris, Contributor
+
+finished initial review. thanks for all the work here. good stuff.
+
+>>>AndreasMadsen, Member
+
+@mscdex @trevnorris Thanks for the review, I have rebased and updated. But I still need to check that all the benchmarks works, which takes a very long time.
+
+This also fixes the bugs introduced in #6570, as I otherwise can't test it.
+
+>>>AndreasMadsen, Member
+
+Finished the last bit of corrections
+
+The csv was misformatted after adding JSON.stringify
+
+if no benchmarks was found, it now prints a meaningful error
+
+changed --var to --set, I think it is more intuitive
+
+
+>>>trevnorris, Contributor
+
+Just have one question, and would like to confirm that the JS files are linted with make jslint (did they before?). Other than that the change LGTM.
+
+>>>AndreasMadsen, Member
+
+Here is the output from make jslint:
+
+PS: I think we will have to solve #7311 before we can land this.
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+;##D22 Escaping needs an improvement in cases where there are quote
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU    
+This may need to be improved a bit as far as escaping goes, at least in case there are quotes in any of the inputs. I'm not sure how R parses CSV, but it may also have issues with other characters, including control characters (especially CR and LF which may be used in some benchmarks -- namely http).
+
+      
+>>>AndreasMadsen, Member
+
+;##D23 The string should be escaped this way
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU     
+good catch. If the csv follows the RFC standard R shouldn't have any trouble. This means the string should just be surrounded with " and " should be escaped as "".
+
+      
+
+>>>Thread end
+
+>>>AndreasMadsen, Member
+
+;##D25 THe code now uses child.send instead
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+I've updated the code such it uses child.send to communicate the configuration object, as I sugested in #7311. I think this is the ideal solution as it does exactly what the user intents.
+
+;##D26 The --set option has to guess the type of the value
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+The --set option still have to guess if the value is a number or a string. I just set it to use the old parseFloat behaviour, as that has worked for a long time and I believe actual numbers are more common than numeric strings. For example I often use --set n=10 to test the benchmark quickly. This behaviour is also much more transparent now, as the output surrounds strings with ". Thus the user can see how the value was parsed.
+
+>>>AndreasMadsen, Member
+
+@trevnorris I've updated the code as you sugested in #7311.
+
+;##D27 The argumetns are notw parsed from options
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D26
+;##SEN NEU
+The process arguments are now parsed by inferring the type from the options object and there is a validation that prevents mixing types in the same parameter.
+
+;##D28 Child.send was removed since it's not necessary anymore
+;##ROLE OP
+;##INV ETC
+;##FORM F
+;##REL SOL
+;##SEN LEAB D25
+I've reverted the child.send() changes, such it always communicates the configuration using process arguments. I see no reason to use both communication methods, now that the process arguments consistently works.
+
+>>>AndreasMadsen, Member
+
+;##D29 The argumetns are notw parsed from options
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D26
+;##SEN NEU
+
+The process arguments are now parsed by inferring the type from the options object and there is a validation that prevents mixing types in the same parameter.
+
+@mscdex is this behaviour reasonable?
+
+>>>mscdex, Contributor
+
+@AndreasMadsen Well, I think that would definitely be a step up from the current behavior.
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+        
+"rate of operations"?
+
+      
+>>>AndreasMadsen, Member
+
+        
+This is the term used in the current README as well: https://github.com/nodejs/node/blob/master/benchmark/README.md#run-all-tests-of-a-given-type
+
+The last number is the rate of operations. Higher is better.
+
+An operation is an iteration or similar, the rate is operations / sec. How can I clarify this?
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+        
+can be ```js
+
+      
+
+>>>Thread end
+
+>>>Fishrock123, Owner
+
+;##D30 Does this require R?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+Seems ok to me... but do these now require R? Should we link to how to install that?
+
+>>>addaleax, Owner
+
+;##D31 There are R scripts in benchmark
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL GEN D30
+;##SEN NEU
+We’re having R scripts in benchmark/ right now, too… not that a note in the README wouldn’t be helpful anyway. :)
+
+>>>Fishrock123, Owner
+
+@addaleax the benchmark comparison currently does not require R though, it seems to with this although I could be mistaken...
+
+>>>Thread start
+
+>>>addaleax, edited
+
+;##D32 Is seems there is a problem with  bg noise
+;##ROLE PM
+;##INV F
+;##FORMSOL
+;##REL NEW
+;##SEN    NEU     
+I’ve been trying this PR out for #7425, and I’ve seen results marked as significant (p of the order of 10^-10) on benchmarks that weren’t even remotely touched (with only very slight changes in measured performance, < 1 %). I suspect background noise to be the reason for that, and I’m wondering if it would help to move the iter loop outwards here?
+
+      
+>>>AndreasMadsen, Member
+
+        
+That sounds strange do you remember which benchmark?
+
+I’m wondering if it would help to move the iter loop outwards here?
+
+This would only make a difference if something external is affecting the benchmark, in which case you are in trouble anyway.
+
+      
+>>>addaleax, Owner
+
+        
+
+That sounds strange do you remember which benchmark?
+
+http/check_is_http_token stood out in particular.
+
+This would only make a difference if something external is affecting the benchmark, in which case you are in trouble anyway.
+
+Well, yeah, that’s what I’m thinking, too. But I’m afraid perfectly isolated benchmarking is something more theoretically achievable than practically (I’ve picked the machine with the least system load that I have access to).
+
+      
+>>>AndreasMadsen, edited
+
+        
+You are absolutely correct, I compared the same node build with itself and systematically watched a movie while it was running the "old" build, left it free when running the "new" build and got an "improvement". This showed statistical significance beyond what can be expected from a 95% confidence interval.
+
+I then did the same without any load and got 2/32 statistical significant tests, as we would expected. The p-value was also much closer to 0.05.
+
+Doing the iteration as the outer loop is a good idea. Alternatively it should be done randomly. I think both solutions will be fine.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>addaleax, Owner
+
+        
+typo: userfrindly
+
+      
+
+>>>Thread end
+
+>>>AndreasMadsen, Member
+
+
+the benchmark comparison currently does not require R though,
+
+;##D33 R is not a new requireemnt
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL GEN D30
+;##SEN NEU
+R is not a new requirement, but you are correct that it wasn't required for compare.js before.
+
+Should we link to how to install that?
+
+Most package managers will provide this. The R webpage doesn't have good install instructions, it just provides a long list of mirrors. https://www.r-project.org/ - How should we document installation?
+
+>>>trevnorris, Contributor
+
+Thanks for addressing all my comments. I dig the changes.
+
+While it can't/shouldn't be addressed here, want devs to understand performance benchmarks are still more complicated than this. For example, how would the fs operations perform if a child process was spawned that performed random amounts of disk activity while the benchmark ran. Oh well. Maybe just need to add more tests. This is a great step in the right direction. Thanks for all your work here.
+
+>>>trevnorris, Contributor
+
+@AndreasMadsen Anything preventing this from landing?
+
+>>>Fishrock123, Owner
+
+Rubber-stamp LGTM if i am holding this up. I only assigned myself to keep it on my radar. I like the changes in premise but do not have time to review them in detail.
+
+(I may be able to make time to try them if desired though.)
+
+>>>AndreasMadsen, Member
+
+@trevnorris @Fishrock123 I was on vacation, before that I was waiting for #7630 to land.
+
+I have fixed the lint issues and merge conflicts. As this is a rather large change, I'm won't merge before Thusday Morning (UTC+0), so people have time to come with last objections. (72 hours as suggested in onboarding.md)
+
+I plan to tag @mscdex, @trevnorris, @Fishrock123, @addaleax as reviewers on this PR, if there are no objections.
+
+>>>Thread start
+
+>>>addaleax, Owner
+
+        
+nit: comma after not
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>addaleax, Owner
+
+        
+nit: Both occurrences of evidence should come with singular verbs.
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>addaleax, Owner
+
+        
+nit: For the statistically minded, the R script performs an?
+
+      
+>>>AndreasMadsen, Member
+
+        
+Can you elaborate on what is wrong, it says:
+
+For the statistically minded the R scripts makes an independent/unpaired 2-group t-test, with the null hypothesis that the performance is the same for both versions. The significant field will show a star if the p-value is less than 0.05.
+
+
+      
+>>>addaleax, Owner
+
+        
+So, I’m not a native speaker, but I would say there should be a comma after ,; otherwise, the sentence sounds like the R script does what it does for specific people. :)
+
+The scripts -> script change suggestion is only to make the noun match the singular verb, and makes -> performs is just a suggestion based on how I think most people use the language around statistical tests.
+
+      
+>>>AndreasMadsen, Member
+
+        
+great feedback.
+
+      
+
+>>>Thread end
+
+>>>AndreasMadsen, Member
+
+I've updated the CLI API such the -- options comes first, hopefully this will be less confusing.
+
+
+
+>>>AndreasMadsen, Member
+
+I had a short conversation with @addaleax about how we should handle type 1 errors, we agreed that a note in the documentation should be sufficient. I've added the following
+
+;##D34 It's possible than statistical significnace doesn't actuallye exists
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW 
+;##SEN NEU
+a word of caution: Statistics is not a foolproof tool. If a benchmark shows a statistical significant difference, there is a 5% risk that this difference doesn't actually exists. For a single benchmark this is not an issue. But when considering 20 benchmarks it's normal that one of them will show significance, when it shouldn't. A possible solution it to instead consider at least two stars (**) as the threshold, in that case the risk is 1%. If three stars (***) is considered the risk is 0.1%. However this may require more runs to obtain (can be set with --runs).
+
+
+>>>Thread start
+
+>>>Trott, Owner
+
+        
+Nit: a word of caution -> A word of caution:
+
+      
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Trott, Owner
+
+        
+Typo: possible solution it to instead -> possible solution is to instead
+
+      
+
+>>>Thread end
+
+>>>AndreasMadsen, Member
+
+Thanks for the review. Landed in ee2843b edbed3f 0f9bfaa f3463cf3061931b5c94ba9c753c1d75ee4d2b712 1f64ceba89a074f9e23196d019d56f00cdd4577a 01fbf656a3874d189cadeced08266a26ea526491 de9b44c0889d2264436277848762f1ebf868aa57 6e745d7a7586b12b894537192726bf2b999a456d 693e7be399e4c0964b5bbceaee6e8326c7c02a42
+
+>>>addaleax, Owner
+
+Uh, you might want to back these commits out of master for now, the linter complains about benchmark/_cli.js
+
+>>>AndreasMadsen, Member
+
+As in force push?
+
+>>>addaleax, Owner
+
+@AndreasMadsen I’d do that for now. Could you fix that, and maybe do a CI or linter run before re-landing? ;)
+
+>>>AndreasMadsen, Member
+
+Thanks for the quick eye. I have force pushed and updated the PR. I wish I knew how it happened.
+
+CI: https://ci.nodejs.org/job/node-test-pull-request/3422/
+
+>>>addaleax, Owner
+
+Well, yeah, I’ve had the, ahem, pleasure of breaking master by not having run CI again before landing myself in the recent past. :)
+
+Anyway, CI looked good before it went all 502 (FreeBSD failure is unrelated and only the Windows tests were remaining), I’d say you can land this. Thanks!
+
+>>>AndreasMadsen, Member
+
+Landed in: ee2843b edbed3f 0f9bfaa f99471b 8bb59fd 855009a 0c0f34e 6edef1d d525e6c
+
+>>>addaleax, Owner
+
+Labelled this semver-major because that’s what has been suggested above, and #7890 shows that people obviously were using APIs of the old benchmarking scripts.
+
+>>>AndreasMadsen, Member
+
+Sounds good. This is obviously not backward compatible and it is quite easy to use the new tools on an old node version.
+
+Also I don't really want to backport this ;)
+

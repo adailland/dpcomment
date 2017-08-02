@@ -1,0 +1,1843 @@
+>>danielrhodes, Contributor
+A first stab at negotiating an acceptable protocol as was mentioned in #23976 @maclover7 @jeremy @javan
+
+;##D1 Going forward, a way is needed for client/server to negotiate theprotocal change
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Going forward, if the ActionCable protocol changes, there ought to be some way for the client/server to negotiate this change and gracefully stop communicating if no common protocol can be established.
+
+Using the Sec-Websocket-Protocol from the WebSocket spec, the client and server negotiate a protocol from a list. Most of the work is being done by the WebSocket driver and the web browser WebSocket client, so all this really does is make sure the client does not get into a bad state if the server has been upgraded and the client has not.
+
+The browser websocket client automatically chooses to disconnect if the server does not respond with an acceptable protocol (this is not configurable), so instead of trying to reconnect (as this would not be useful), the client shuts down the monitor.
+
+>>>rails-bot, Other
+
+Thanks for the pull request, and welcome! The Rails team is excited to review your changes, and you should hear from @arthurnn (or someone else) soon.
+
+If any changes to this PR are deemed necessary, please add them as extra commits. This ensures that the reviewer can see what has changed since they last reviewed the code. Due to the way GitHub handles out-of-date commits, this should also make it reasonably obvious what issues have or haven't been addressed. Large or tricky changes may require several passes of review and changes.
+
+Please see the contribution instructions for more information.
+
+>>>javan, Member
+
+;##D5 Which browser was this tested on?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What browsers have you tested this in? I'm curious if protocols and onclose event codes are broadly supported. Unclear from documentation I've found online: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket#Browser_compatibility and https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent#Browser_compatibility
+
+>>>Thread start
+
+>>>javan, Member
+
+return is implicit in CoffeeScript, you can cut it.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+More CoffeeScripty:
+
+>>>javan, Member
+
+;##D2 Why was the additional log for 1006 and not the others?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Also, why an additional log for 1006 only? Might as well log event.code, event.reason, and event.wasClean with every close.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+In CoffeeScript you can do unless event.wasClean (or if not event.wasClean).
+
+>>>Thread end
+
+>>>jeremy, Owner
+
+Cool! TIL that Sec-Websocket-Protocol is for subprotocol negotiation.
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D3 Can we bubble this up to the app?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Can we bubble this up to the app in some way so it can react in the UI, e.g. show a prompt to reload the page or auto-reload it?
+
+      
+>>>danielrhodes, Contributor
+
+;##D4 It also needs a way to tell the app about a hard disconnect
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D3
+;##SENNEU
+
+Yeah we need a way of telling the app why there was a hard disconnect. To be discussed, as there are other cases where we need this as well (e.g. authentication failure).
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+;##D6 The code was adjusted to work on some specific browsers
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D5
+;##SEN NEU
+
+@javan Ok I tested it on Chrome, Safari, Firefox, and Mobile Safari. I don't have IE, but it does have the CloseEvent. Mobile Safari was the only one which behaved differently from the others (it did not automatically disconnect when the negotiation failed). Therefore, I changed the code to check the protocol negotiated to see if it is in the list the client knows it can accept and if not, to disconnect. I likewise took out that close event code stuff and checked the protocols as a way to decide if the monitor should be stopped. I think that should resolve your comments.
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+;##D7 Would actionalbe-v17-json work better?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+How about e.g. actioncable-v17-json? Tack on the transport encoding (which is always JSON now) and use a big chunky version that looks nothing like the AC version number since the only purpose is to break major compat (there are no "minor" changes).
+
+Then the server can negotiate by parsing out the requested version and transfer encoding and picking the matching protocol handler for the conn.
+
+      
+>>>matthewd, Owner
+
+;##D8 Do we also want to provide application-level value?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL GEN D7
+;##SEN NEU
+
+Do we only want to version the ACa transport version, or also provide for an application-level value? I'm thinking of something equivalent to config.assets.version...
+
+      
+>>>danielrhodes, Contributor
+
+@jeremy This is a good idea.
+
+      
+>>>danielrhodes, Contributor
+
+@matthewd This kind of gets to a bigger question of how much backwards-compatibility we build into this.
+
+;##D9 If Actioncable becomes a public resource, bcompaitibility will be important
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D8
+;##SEN NEU
+
+If somebody wants to make their ActionCable server a publicly available resource, then backwards compatibility becomes important. Likewise, I made a Swift client for ActionCable and a changing protocol version becomes a real pain for the developer because the longer upgrade cycle becomes a chicken-and-egg problem.
+
+;##D10 Otheriwse bcompatibility is not so important
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D9
+;##SEN NEU
+
+On the other hand, if this is really only used so a person can communicate with their own backend in the browser, there doesn't need to be a lot of backwards compatibility built-in. Only enough so that the client can gracefully degrade until the next reload.
+
+;##D11 The developer should not need to pin a version
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D10
+;##SEN NEU
+
+In either case, there is no benefit for the developer in being able to pin a version because if the server is able to support a version, it should because it's an internal protocol.
+
+I'm interested to see what feedback we get about this.
+
+      
+>>>jeremy, Owner
+
+;##D12 App level protocoal version could be helpful to wiggle out stale-clients
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D11
+;##SEN NEU
+
+App-level protocol versioning is interesting. It could be helpful, at minimum, to provide a big hammer so apps can wiggle out of a stale-client compatibility mess by bumping the protocol.
+
+;##D13 We should leave apps to make changes in a compatible way
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D12
+;##SEN NEU
+
+For other cases, like changing channel behavior, I'd lean to leaving it up to apps to make changes in a compatible way. But, heck, leaning on bumping the app proto version could be simpler in many of these cases too.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+Good one to pass as a keyword arg, no need to keep @options around
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+
+      
+>>>jeremy, Owner
+
+Or glob the keyword args as websocket options:
+
+
+
+>>>danielrhodes, Contributor
+
+Would be happy to do this as it is cleaner. I haven't seen much use of the Ruby keyword arguments in the Rails codebase, but I guess it's ok now?
+
+UPDATE: Seems Ruby 2+ is now required for Rails 5, so I'll do the keyword args.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+;##D14 Any idea on how to have client communicate with the app for a reason for the disconnect?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+In the comments @jeremy pointed out that it would be helpful if there was some way the client could communicate to the app a reason for the disconnect. There isn't currently a global way of doing this, so any opinions on this? We can pass some sort of reason object through to the disconnect method like WebSocket does.
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+Ditto
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+Do we need the || nil? Would only kick in if protocols was oddly false
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+Ditto
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D16 This is good but causes the client to be disconnected until you reload
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This will prevent the connection monitor from infinitely attempting to reconnect (as noted in #23976 (comment)), but leaves you disconnected until you reload your browser. Think we should notify subscriptions of this state so they can manage / instruct reloading.
+
+      
+>>>danielrhodes, Contributor
+
+;##D17 Would a simple object with code and reason be ok?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D16
+;##SEN NEU
+
+Yes, @jeremy wants something along these lines. I guess just a simple object with code and a reason passed into the disconnect method?
+
+      
+>>>javan, Member
+
+Yeah, I think that'd work fine. Would be cool to hot-reload the client-side js, but that's probably more trouble than it's worth for what will be an infrequent event.
+
+      
+>>>danielrhodes, Contributor
+
+;##D18 We could do something with Sprocket
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D17
+;##SEN NEU
+
+I guess if you could plug into Sprockets somehow, you could pull a new version of the classes (perhaps namespaced differently for each asset build) and then hot swap in the ActionCable classes and reconnect. It would be super cool, but yes a lot of trouble.
+
+As a side note: Facebook was doing something similar on Android for awhile, before Google made them stop by modifying the TOS for the Google Play Store.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D19 We could add :protocols instead
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+How about adding :protocols to INTERNAL instead? It's a general purpose data bag.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+I'd extract this to a new method since it's duplicated
+
+>>>Thread end
+
+>>>Thread start
+
+>>>maclover7, Member
+
+;##D20 Having the save versioning number as the gem would be good?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Do we want this to have the same version number as the gem? Would prevent having two different version numbers for Action Cable...
+
+      
+>>>jeremy, Owner
+
+;##D21 The different version are intentional
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The protocol version is distinct from the library version and will be stable over longer periods. Using separate versions is intentional.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jeremy, Owner
+
+Missed this line? options gone now
+
+      
+>>>danielrhodes, Contributor
+
+Oops  :-)
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D22 Being able to log client and server protocol would be useufl
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+For debugging, it would be useful to log the client and server protocol versions rather than say they're not common.
+
+      
+>>>danielrhodes, Contributor
+
+;##D23 The client has no idea what the subprotocols the server supports
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D22
+;##SEN NEU
+
+The server does not tell the client which subprotocols it supports. It simply chooses one or none, and then responds with that protocol in the header.
+
+      
+>>>javan, Member
+
+I mean add @webSocket.protocol and ActionCable.PROTOCOLS to the log message
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+;##D24 @disconnect() had to be removed to avoid a race condition
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@javan I removed @disconnect() from the error handler for the websocket. From what I understand, this always gets fired with close anyways, but it creates a race condition and doesn't provide any information.
+
+>>>Thread start
+
+>>>javan, Member
+
+Subscriptions don't receive Event objects anywhere else so I think passing a plain object would do. Perhaps:
+
+
+
+I think willReconnect better indicates wether action is needed.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+✂️
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D25 We should move to the close handler
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Think this should move to the close handler so it's more closely tied to the related condition.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+Can use the protocol method instead of repeating @webSocket?.protocol
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+Arrays are implicitly joined with , when coerced to a String. Can do .log("Opening WebSocket, current state is #{@getState()}, subprotocols: #{protocols}")
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+I'd move this logging to the initial open entry. And prefer CoffeeScript's string interpolation: "using #{@protocol()} subprotocol"
+
+      
+>>>danielrhodes, Contributor
+
+;##D26 There's alreayd a log for that, this is different
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+There is a log in the initial open which shows the available protocols. The log above is showing the actual protocol chosen by the server.
+
+      
+>>>javan, Member
+
+I'm suggesting combining them. No need for two log entries.
+
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+getProtocol would better match the other accessor methods like getState.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+ditto re: matching method naming convention: isSupportedProtocol
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+Might as well flip the conditions to avoid if noting.
+
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+ditto re: flipping condition
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D24 @disconnect() had to be removed to avoid a race condition
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I removed @disconnect() from the error handler for the websocket. From what I understand, this always gets fired with close anyways, but it creates a race condition and doesn't provide any information.
+
+;##D25 IS the asusmption that every error results in a close true?
+;##ROLE PM
+;##INV T
+;##FORM OPQ 
+;##REL REFR D24
+;##SEN NEU
+
+This assumes every error results in a close, yeah? If you can verify then 👍, but otherwise it makes me a little uncomfortable.
+
+      
+>>>danielrhodes, Contributor
+
+https://www.w3.org/TR/websockets/#concept-websocket-close-fail
+
+
+
+If the user agent was required to fail the WebSocket connection or the WebSocket connection is closed with prejudice, fire a simple event named error at the WebSocket object.
+
+;##D26 Seems to be fired consistently
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D25
+;##SEN NEU
+
+Firefox and Safari do not consistently fire this error event, but they all seem to fire the close event consistently.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>maclover7, Member
+
+;##D27 Don't we have only one protocol?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Isn't there only supposed to be one protocol here? Not sure why we need an array 😬
+
+      
+>>>danielrhodes, Contributor
+
+;##D28 It's because of backward compaitibility
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D27
+;##SEN NEU
+
+The websocket on both ends takes an array and for potential backwards compatibility reasons, it may be necessary in the future for the server to be able to respond to multiple versions (cross your fingers this doesn't come true!).
+
+>>>Thread end
+
+>>>Thread start
+
+>>>maclover7, Member
+
+I think we can drop the default here for protocols -- the option to pass in a different array is already presented to users in Connection::WebSocket#initialize
+
+>>>Thread end
+
+>>>Thread start
+
+>>>maclover7, Member
+
+ditto -- I think we can drop the default here for protocols -- the option to pass in a different array is already presented to users in Connection::WebSocket#initialize
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+Just had a bunch of fun trying to figure out an issue where, when the browser attempts to reconnect on a failed connection, it can sometimes look the same as if there was a protocol mismatch. To my horror this was also specified as the correct implementation of websockets. That would leave us with no ability to stop retrying/tell the app that the connection was not going to work.
+
+Luckily this only seems to happen in Chrome. My solution, which is a tad bit hacky, is to test the connection using a temporary websocket connection but without protocols, and if that goes through, we know the protocols we tried before were incorrect. If it fails, no need to do anything. Tested on Chrome, Safari, Mobile Safari, and Firefox.
+
+Does somebody have the ability to test on IE?
+
+>>>Thread start
+
+>>>maclover7, Member
+
+Bunch of empty lines here...?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>maclover7, Member
+
+Do we need these commented out lines?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>maclover7, Member
+
+ditto - Do we need these commented out lines?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+Prefer CoffeeScript's operators: if event.code is 1000 and event.wasClean and @getProtocol() is ""
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+ditto re: operators
+
+>>>Thread end<
+
+>>>Thread start
+
+>>>javan, Member
+
+You can use a fat arrow function, which binds to this:
+
+>>>danielrhodes, Contributor
+
+Will give this a try. Thanks for the tips! My CoffeeScript skillz are nascent.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D29 Operating a new connection is not a good idea
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Hmm, I don't think opening a new connection here is a good idea. Imagine a scenario when you're performing a server restart and suddenly every user attempts to reconnect. A flood of traffic like that can be crippling. I'm not totally clear on the circumstances that lead to this condition though so maybe you can elaborate.
+
+      
+>>>danielrhodes, Contributor
+
+;##D30 IS needed to give a message for the disconnect
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D29
+;##SEN NEU
+
+So this is all so we can give the app a message saying it was disconnected for good and why.
+
+;##D31 There doesn't seem to be an alternative for chrome
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D30
+;##SEN NEUn
+
+I'm not a big fan of doing this either, but there isn't a good alternative for Chrome. The reason for all this is that Chrome does not distinguish between a bad disconnect and a protocol mismatch. In either case, it disconnects. For some reason the standard for websockets in browsers wants to disincentivize "probing" a websocket for capabilities (as if you would do this from a web browser!).
+
+;##D32 The only reliable way is to use a protocolsless connection with chrome
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D31
+;##SEN NEU
+
+Thus, the only way to reliably tell if Chrome disconnected because of your normal bad connection is to create a new connection without protocols to see if Chrome stays connected.
+
+This should only occur in two circumstances:
+
+
+
+A previous connection attempt on Chrome was unsuccessful at connecting, at which point the server is down anyways.
+
+There was a protocol mismatch when the server was up, at which point Chrome is going to disconnect, reconnect again without protocols, see that was the reason, and then disconnect permanently.
+
+;##D33 The alternative is not getting a error code
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D32
+;##SEN NEU
+
+The alternative to this is just not upgrading the connection when the server sees that the client wants protocols it doesn't have. I don't think we could get an error code off that.
+
+Otherwise, it's on the same retry interval as normal.
+
+      
+>>>danielrhodes, Contributor
+
+;##D34 THe thundering herd issue could be solved by adding some jitter
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEEU
+
+By the way, that thundering herd issue is still going to be a problem with the current retry handler. Given that all clients disconnect at the same time from a restarting server, they will all be on similar intervals when retrying. Could solve this by adding some jitter.
+
+      
+>>>javan, Member
+
+;##D35 The therd should be managed naturally by connectionmonitor
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+That would only be true if every client connected at the exact same time, which will never be the case. ConnectionMonitor's timer naturally distributes the herd based on the randomness of when each client opened
+a connection.
+
+      
+>>>javan, Member
+
+;##D32 The only reliable way is to use a protocolsless connection with chrome
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D31
+;##SEN NEU
+
+Thus, the only way to reliably tell if Chrome disconnected because of your normal bad connection is to create a new connection without protocols to see if Chrome stays connected.
+
+;##D33 We could instead send a special rejection message
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D32
+;##SEN NEU
+
+If we can't reliably read the close event details, perhaps we should instead send a special rejection message that instructs the client to disconnect.
+
+      
+>>>danielrhodes, Contributor
+
+;##D34 It would require moving the negotiation out of the websocket layer
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D33
+;##SEN NEU
+
+Well we can't send a Sec-Websocket-Protocol and then not receive one back from the server: the browser websocket clients just force disconnect. So that would mean moving the negotiation to outside of the websocket layer, which involves changing the protocol, and itself becomes subject to change. :-)
+
+;##D35 THe problem is not closing the connection, but preventing a bad state on the client
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL GEN D34
+;##SEN NEU
+
+Closing the connection is no problem: the browser is forcefully doing that for us. This whole thing is quite effective in preventing the client side from getting into a bad state, which is the primary concern.
+
+;##D36 The issue is telling the app why we're dc'ing
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D35
+;##SEN ENU
+
+
+But the issue that remains is we can't tell the app why there has been this specific disconnect in Chrome, unless we use this reconnect thing. For me, that's not ideal but it's not a deal breaker.
+
+I see a few options:
+
+;##D37 A possibility is to use a double recconection
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D36
+;##SEN NEU
+
+;##D45 consistent behavior
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D37
+;##SEN NEU
+
+Keep the double reconnection thing. It's going to result in Chrome doing two very short-lived connections, but only if the protocol changes. However, the connection attempts will stop after that.
+Pros: We get consistent behavior across all browsers; from a load perspective it will in aggregate be less (no retries).
+
+;##D38 IT will cause two btb connections
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D37
+;##SEN NEU
+
+;##D39 Another solution is to let chrome retry normally
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D37
+;##SENNEU
+
+;##D44 No btb connection attempts
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D39
+;##SEN NEU
+
+Cons: Only when there is a protocol change, there will be two back to back connection attempts by Chrome users; Unclear what load profile this would create. Solution is non standard.
+2. Let Chrome continue to retry as it normally would.
+Pros: No back to back connection attempt for Chrome.
+
+;##D40 Chrome users will not have user-friendly message
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D39
+;##SENNEU
+
+;##D41 Another possibility is not attempt to try to understand the reason
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D39
+;##SEN NEU
+
+;##D46 consistent behavior
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+Cons: Inconsistent behavior across browsers, and Chrome users won't be able to get a user-friendly message to refresh. Chrome will continue to retry fruitlessly.
+3. Don't attempt to understand reason for disconnection and continue retrying, but the app won't know why it disconnected.
+Pros: Consistent across all browsers.
+
+;##D42 Will force all browser to continue retrying
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+;##D43 A forth solution is to mvoe negotation to websocket layer
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+Cons: No nice message to users. All browsers are going to continue to retry fruitlessly.
+4. Move protocol negotiation out of websocket layer.
+
+;##D47 Consistent behavior
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D43
+;##SEN NEU
+
+Pros: We can get consistent behavior across browsers.
+
+;##D48 Solution is nto resistant with protocol changes
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D42
+;##SEN NEU
+
+Cons: Re-inventing the wheel; solution is not resistant against future protocol changes; binds ActionCable to a content encoding.
+
+Personally I think 1 or 3 are the best.
+
+@jeremy Any opinions on this?
+
+      
+>>>jeremy, Owner
+
+;##D49 WIll force us not returning a sec-websocket protocol
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D37
+;##SEN NEU
+
+#1 is a cool idea, but it also relies on the server not returning a Sec-Websocket-Protocol choice when Sec-Websocket-Accept is omitted.
+
+#2 is the odd one of the bunch.
+
+;##D50 THe cost of fruitless retries is low
+;##ROLE PM
+;##INV T
+;##FORM SOK
+;##REL ELAB D41
+;##SEN NEU
+
+#3 is nice because it's taking a small, simple step and the cost of fruitless retries is fairly low.
+
+Re. #4… wonder if the client requested
+
+
+;##D51 We could be hable to guarantee a handschake
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D43
+;##SEN NEU
+
+Then we can guarantee we'll always have a handshake. From there, the actioncable-unsupported protocol's only job is to reject the connection as unsupported.
+
+In any case, seems #3 is best for this PR! Plenty of room to improve in subsequent work 😁
+
+      
+>>>danielrhodes, Contributor
+
+;##D52 If the server doesn't support any protocol, it need to return a null in the header
+;##ROLE F
+;##INV OP
+;##FORM SOL
+;##REL REFR D49
+;##SEN NEU
+
+For 1. This is part of the WebSocket spec. If the server doesn't support any protocols, it needs to not return that header or return the header with a null value. In our case, there is no visibility into this process as the WebSocket driver does this for us.
+
+Re 4: This is a fantastic idea! I'm going to give this a try. I think this would do the trick.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+I'm -1 on using a custom Event object to communicate the disconnect info and would prefer a plain object instead.
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+Ok I removed the reconnection stuff and replaced it with actioncable-unsupported, which works across all browsers and gives us the visibility we need to disconnect if there's a protocol mismatch and tell the app. Also more elegant. I'm very happy with that solution. 🎩  tip to @jeremy
+
+>>>maclover7, Member
+
+This is coming along very nicely -- can you start to squash down some of your commits?
+
+>>>danielrhodes, Contributor
+
+@maclover7 Yep I plan on doing that before anything is merged!
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D53 We shouldn't dispatched websocket data
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+WebSockets are an implementation detail of Action Cable so it smells wrong to dispatch WebSocket-based data here. The only useful data for the client is wether or not AC is going to reconnect automatically or stop.
+
+      
+>>>danielrhodes, Contributor
+
+Ok yeah I see what you mean: if ActionCable were to support say SSEs or HTTP/2 in the future, reducing the surface area of WebSocket dependencies would be a good thing. :-)
+
+In that case, we should just return an object with a willAttemptReconnect property set to true/false.
+
+      
+>>>javan, Member
+
+👍
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D54 We could add a connectioN#stop method
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Would be nice to add a Connection#stop method that closes any existing connection and stops the monitor. It could be called here instead, and would provide an API for clients use (a feature that's been requested). Currently, there isn't an easy way to close the connection because the monitor always reconnects it.
+
+      
+>>>danielrhodes, Contributor
+
+Check out what I just added. I put the start and stop methods on the consumer.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+Non-standard indentation going on in the added docs. It goes, one for text, three for code.
+
+      
+>>>kaspth, Owner
+
+resubscribe.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+;##D55 A new API would be better than passing true
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SENNEU
+
+Passing true reads really weird. I think adding a new API could capture this better, perhaps close(withoutReconnect: true) could do (if I'm understanding the purpose of the argument right).
+
+      
+>>>javan, Member
+
+Agree re: true as an arg, but I'd prefer a Connection#stop method instead.
+
+      
+>>>kaspth, Owner
+
+;##D56 We could avoid adding new terminology
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D55
+;##SEN NEU
+
+Another thing to note is, we're adding extra terminology here. On top of close and open and the connected and disconnected callbacks, we now have start and stop. Since (dis)connect is generally what end-users will see that might be better than start & stop. E.g. App.cable.connect() over App.cable.start()
+
+      
+>>>danielrhodes, Contributor
+
+Agreed on the consistency. Changed it.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+;##D57 We could represent the order with the use of protocols.last
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Could manifest the order requirement by using protocols.last in code instead of an extra key. Other parts of the code might even want to stay oblivious to the fact that last protocol means "unsupported", and write it as "whelp, we're all out of protocols, no reason to attempt reconnect."
+
+      
+>>>danielrhodes, Contributor
+
+Yeah agreed it feels a bit fragile, which is why I was so explicit. I also just added a test to make sure that the protocol is last.
+
+;##D58 Another option is to add unspported protocol
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D57
+;##SEN NEU
+
+However, instead I could just add in the unsupported protocol right before we instantiate the driver (in ActionCable::Connection::WebSocket), which I think would accomplish what you were after when you say
+
+
+
+Other parts of the code might even want to stay oblivious to the fact that last protocol means "unsupported"
+
+
+
+This would keep the placement details safe from the rest of the code.
+
+      
+>>>danielrhodes, Contributor
+
+Ok I did that. Take a look. I think that looks much cleaner and makes it so nobody really has to think about the ordering.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+How about:
+
+
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+@javan I just rolled that entire disconnect method into close (it's much cleaner this way).
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D59 Why was the disconnect mehtod moved?
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SENNEU
+
+Why was this moved? It introduces a subtle behavior / timing change that doesn't seem relevant to your PR.
+
+      
+>>>danielrhodes, Contributor
+
+A couple reasons:
+
+;##D60 The recordConenct was in a place that made it protocol dependent
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D59
+;##SEN NEU
+
+That @monitor.recordConnect() is in a place which makes it protocol dependent. As I recall you wanted to get rid of the welcome message anyways.
+
+;##D61 It was creating a race condition
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D59
+;##SEN NEU
+
+It was creating a race condition where it was called after the decision to disconnect had been made when there was a protocol mismatch (because the welcome message was sent right after the server opens the connection), but before there was an actual disconnect. Maybe this doesn't matter because the monitor is being shut off anyways, but it seemed like an undesirable behavior.
+
+
+      
+>>>javan, Member
+
+You sold me on the welcome message in #23976 (comment) 😁
+
+;##D62 A welcome message would be good
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I also like the idea that, especially when there is potentially authentication/the possibility that the server will reject the connection, the server sends a definitive message to the client saying you are connected: hence welcome.
+
+
+      
+>>>danielrhodes, Contributor
+
+Yes this is true as well, and I just realized there's a weakness I need to fix.
+
+      
+>>>danielrhodes, Contributor
+
+;##D63 How can we define a successful connection?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Your comment got me thinking about terminology, and I guess the question is: what determines a successful connection? I suppose the whole point of this PR is that we regard a successful connection as one where we have a socket connection and we have a successful protocol negotiation. So I put the recordConnect back where it was, and also moved the subscription reload there as well, because that was a race condition/bound to break.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D64 Moving the two methods cause a missmatch on the timings
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NUE
+
+Moving @monitor.recordDisconnect() and @subscriptions.notifyAll() from the onclose handler to the close method changes their timing such that they don't accurately reflect the connection's state. I also find it confusing that onclose calls close.
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+Ok @javan, changed the disconnection stuff so it's not using the close method as much. I think it looks better now.  At least from a timing perspective, everything falls into the right order in the logs.
+
+Either way, it is an improvement from what was there before. There were several methods which "closed" the connection and they were called in different orders at different times. This follows much more logically.
+
+Another gotcha which I've seen mentioned somewhere else is people who said they waited until the send buffer is clear before disconnecting. Not going to attempt that one here.
+
+>>>Thread start
+
+>>>kaspth, Owner
+
+;##D65 Why do we need to pass unsopproted_protocol around?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Still don't understand why we need to pass unsupported_protocol explicitly around in all these places. If protocols is a by-priority list of protocols for the client to respond to. Then wouldn't the last protocol really indicate nothing more to negotiate; close the connection altogether. To me that makes more sense than jumping through hoops with this variant of a protocol.
+
+;##D68 Adding unsupported protocol back to actioncable:internal[:protocols] would be good
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+To top it off, I'd like to add the unsupported protocol back to ActionCable::INTERNAL[:protocols], so we can think of it as a manifest of the negotiation order.
+
+      
+>>>danielrhodes, Contributor
+
+;##D66 The server is chosing the protocol, not the server
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D65
+;##SEN NEU
+
+The client isn't choosing the protocol, the server is. The client presents the server with a list of protocols it supports, the server chooses the first one which matches its own list of supported protocols, and sends that one (or none) back. If the browser client sees that none are sent back, it disconnects. That is all outside of our control.
+
+;##D67 The client is not supposed to say the reason of the disconnect
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D66
+;##SEN NEU
+
+The problem this is solving is that according to the WebSocket browser standards, the client isn't supposed to say whether that disconnect was due to a network failure or a protocol failure. So the unsupported protocol is a way around that: we know they are always going to agree on a protocol, but at least now we can see that it is the unsupported one.
+
+I suppose we could say "if the agreed upon protocol is equal to the last one on the list, then disconnect"... but that would be confusing to the next person who comes along and sees that code.
+
+      
+>>>danielrhodes, Contributor
+
+;##D68 Adding unsupported protocol back to actioncable:internal[:protocols] would be good
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+To top it off, I'd like to add the unsupported protocol back to ActionCable::INTERNAL[:protocols], so we can think of it as a manifest of the negotiation order.
+
+;##D69 The order they're given to the driver shouldn't mattern
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D68
+;##SEN NEU
+
+Sure I can do this. But on the server side, it does not matter which order they are given to the driver. It only matters that the client give the server the protocols with the unsupported protocol last. So I figured I would keep that ordering logic on the client side.
+
+      
+>>>kaspth, Owner
+
+;##D70 Is there a reaosn why we need to insert the extra protocol at runtime?
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D69
+;##SEN NEU
+
+My problem is just that I don't see why we need to insert the extra protocol at runtime. My understanding is that we can do all that upfront. Maybe that's an insufficient understanding of the domain.
+
+I'll try rereading your comments tomorrow, see if my brain is more receptive then 😄
+
+Thanks for all your effort on this! This is going to be so cool to have in ❤️
+
+      
+>>>danielrhodes, Contributor
+
+We don't. I just thought it would be clearer to any future maintainers that this was a special case, but at the same time not get accidentally removed.
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+What's the status of this? Are we good to merge? I think after the reviews, the footprint of the change in terms of behavior/code is now quite low.
+
+>>>maclover7, Member
+
+@danielrhodes I think this is coming along nicely -- can you try to squash down some of your commits?
+
+>>>danielrhodes, Contributor
+
+Yes will do that now. Github actually just added a feature to do this automatically on merge -- something I'm sure you will appreciate!
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D71 What's the purpose of actioncable-unsupported?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Apologies for asking again since I think you explained this already, but it's not clear to me what the purpose of actioncable-unsupported protocol is. Perhaps it could be defined as a separate constant that gets included in this array so it can be documented separately.
+
+;##D72 What changes warrant a version bump?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Additionally, now that we have a v1 protocol in place, what kinds of changes warrant bumping the version? (I know the answer, but think it's worth documenting).
+
+      
+>>>maclover7, Member
+
+;##D73 Is there any downside in having the protocol version matching?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Sorry if I've already asked this -- is there any downside to having the protocol version match the current Action Cable version? Any breaking changes with Action Cable's websockets communication infrastructure should theoretically also be a regular-Action Cable breaking change. Having two version numbers seems a bit much...
+
+      
+>>>danielrhodes, Contributor
+
+;##D73 Purpose for actioncable-unsopported 
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D71
+;##SEN NEU
+
+@javan Yeah the reason for this is that the browser side WebSocket client sticks with the bizarre recommended implementation where the client does not tell us why it disconnected, when it could either be a bad disconnect or a protocol mismatch. So the actioncable-unspported protocol is the way to get around this: it will always be the last to be chosen, and if it is, we know for sure there is a mismatch. The alternatives to this are really hacky.
+
+;##D74 Reason for different protocol versions
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D73
+;##SEN NEU
+
+@maclover7 I initially asked myself the same thing. However, the protocol version is distinct from the Rails version, and ideally it would be changed quite a bit less often than the Rails version. Also since these protocol changes are almost always breaking changes, semantic versioning is not quite appropriate here.
+
+      
+>>>javan, Member
+
+
+protocols (Optional)
+Either a single protocol string or an array of protocol strings. These strings are used to indicate sub-protocols, so that a single server can implement multiple WebSocket sub-protocols (for example, you might want one server to be able to handle different types of interactions depending on the specified protocol). If you don't specify a protocol string, an empty string is assumed.
+-- https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
+
+;##D75 Why does the client need to know about actioncable-unspported?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL REFR D73
+;##SEN NEU
+
+Guess I'm still not clear why the client needs know about actioncable-unsupported. What would happen if we only pass the supported protocol and let the server disconnect if that protocol isn't specified?
+
+      
+>>>javan, Member
+
+;##D76 Can the server set the protocol to actioncable-unsupported in this case?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL REFR D75
+;##SEN NEU
+
+Sorry, that's not right, I know we're not disconnecting server side on protocol mismatch. But can the server set the protocol to actioncable-unsupported if the client doesn't open the WebSocket with a supported protocol?
+
+For example, client connects with:
+
+
+
+And if the server only knows about actioncable-v2-json then it responds by setting the protocol to actioncable-unsupported.
+
+      
+>>>danielrhodes, Contributor
+
+;##D77 No, the server cannot do that
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D76
+;##SEN NEU
+
+The short answer is no. The server must choose one or none of the protocols the client presents to it. We provide a list of protocols to the Faye-Websocket driver, and we likewise give a list of supported protocols to the browser websocket client. If the server doesn't support any of the protocols, the "correct" way to handle this is to return nothing -- except we get penalized for doing this on the client side because of the implementation recommendations... hence this unsupported stuff.
+
+;##D77 We could fork the Faye-websocket, but it's stubborn 
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL GEN D76
+;##SEN NEU
+
+The longer answer is that yes we could fork the Faye-Websocket driver and do this... but my experience with the browser websocket client has been that it is extremely stubborn, so it would probably not like this and throw an error if it received a protocol it did not send.
+
+      
+>>>javan, Member
+
+Gotcha. Thanks for explaining!
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D78 We should mvoe away from dispatching an event
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Move away from dispatching an event here. It's a plain object now.
+
+      
+>>>danielrhodes, Contributor
+
+Are you saying name it something different? Any suggestions?
+
+      
+>>>javan, Member
+
+Yeah, maybe document it as disconnected: ({ willAttemptReconnect: boolean }) ->?
+
+      
+>>>javan, Member
+
+I just don't want to suggest that it's an Event instance.
+
+      
+>>>danielrhodes, Contributor
+
+Yeah makes sense. I just changed it to that.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D79 We could drop isClosed and replace with this
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Could do @webSocket?.close() if @isActive() and drop the isClosed method entirely. Side note: we intentionally named isActive to not match a connection state and isClosed doesn't follow that pattern.
+
+      
+>>>danielrhodes, Contributor
+
+Yep don't see why not. Changed.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D80 We could drop @disconnected and rely on the connection
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Tracking @disconnected was originally in place because to prevent calling the disconnect method twice since both the error and close handlers called it. Now that disconnect has been removed, I think we can rely on the connection state alone and remove @disconnected.
+
+>>>danielrhodes, Contributor
+
+;##D81 It should stay, it helps prevent some conditions with onClose
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D80
+;##SEN NEU
+
+I think that should stay for now. It still seems to prevent some conditions where onClose is called by the websocket even though the websocket is already disconnected, which I think would be confusing to the developer. Personally I like those callbacks to be very definitive: if disconnected is called, it means it really just disconnected. So we shouldn't be making lots of callbacks while we are trying to reestablish a connection in the background.
+
+      
+>>>javan, Member
+
+👍 if that's the case. Strange that close would be dispatched twice though. Can you reproduce?
+
+      
+>>>danielrhodes, Contributor
+
+Oh yeah for sure. On every unsuccessful connection this is how the browser says a connection did not happen. I guess it would have made more sense for them to add an event to onError, but what can you do?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+How about splitting the protocols here into usefully named vars:
+
+
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+Using the suggested changes above, this would change to:
+
+>>>danielrhodes, Contributor
+
+I had a back and forth with @kaspth about this... he wanted to minimize the heavy separation I made in the code between the supported and unsupported protocols. However, I don't think your suggestion conflicts with what he was looking for, so I made the change.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D82 IS there a scenarion where messages are received after .close()?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is there a scenario where messages are received after calling webSocket.close()?
+
+      
+>>>danielrhodes, Contributor
+
+;##D83 The client decides the mismatch, not the server
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D82
+;##SEN NEU
+
+Yes the server fires out the welcome message pretty fast after connecting. The server doesn't decide to disconnect on a protocol mismatch, the client does.
+
+      
+>>>javan, Member
+
+;##D84 Can we prevent the server sending messages on mismatch?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL REFR D83
+;##SEN NEU
+
+Can we prevent the server from sending messages on protocol mismatch?
+
+      
+>>>danielrhodes, Contributor
+
+;##D85 It gets a bit murky if we do that
+;##ROLE  OP
+;##INV F
+;##FORM SOL
+;##REL REFR D84
+;##SEN NEU
+
+Yes we could. I ran through some scenarios where we could just tell the server to stop communicating in these cases, but it gets kind of murky and the websocket protocol seems to indicate the onus is on the client to disconnect when it doesn't like the protocol not the server. Also if somebody writes a client in something other than in the browser (that would be me :-P), they might not want that behavior. Specifically, the problem is that when a client is deployed in a mobile app, you want the client to be pretty flexible if the protocol needs to change -- so the server going dark is like the worst thing that could happen!
+
+      
+>>>javan, Member
+
+Cool. Mostly asking out of curiosity. Adding this guard makes sense.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D86 Isn't this redudndant?
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Isn't checking @getProtocol() in supportedProtocols enough? If the protocol is in that array then it's not unsupportedProtocol.
+
+      
+>>>danielrhodes, Contributor
+
+Sure. It's just extra safety I guess.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+;##D87 Should we set disconnect=false only if protocol is supported?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Should we set disconnected = false only if the protocol is supported and remove the disconnected check in the onMessage handler?
+
+      
+>>>danielrhodes, Contributor
+
+;##D88 It was making the connection monitor think ti was still online
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D87
+;##SEN NEU
+
+I tried this before, but that welcome message was coming in and making the connection monitor think it was still online. It doesn't happen when code is as it is.
+
+      
+>>>javan, Member
+
+
+      
+>>>javan, Member
+
+;##D89 Replacing it would making it clearer
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D88
+;##SEN NEU
+
+Guess that ^ doesn't remove the need to check disconnected in the message handler, but I find it clearer since it consolidates the logging and removes the early return.
+
+      
+>>>danielrhodes, Contributor
+
+;##D90 Changing it would make us lose the meaning of a successful connection
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D89
+;##SEN NEU
+
+Yeah I was fooling around with this and was going back and forth, but then I settled on a successful connection means actual server connection and a protocol is chosen. That work we did with the welcome message was actually quite useful in telling the client something was wrong during authentication failure, and we would lose this in the case where a successful connection means just connecting to the server.
+
+      
+>>>danielrhodes, Contributor
+
+Also I found a bug that hadn't been caught before which was that subscription requests were fired off immediately on connecting, even if the server had not sent welcome yet. In some scenarios that would produce odd behavior I imagine.
+
+      
+>>>javan, Member
+
+We've hit sporadic missing subscriptions in Basecamp. Hoping this is the cause! ❤️
+
+      
+>>>javan, Member
+
+
+I settled on a successful connection means actual server connection and a protocol is chosen.
+
+
+
+👍 to that, but you're setting disconnected = false before checking the protocol.
+
+      
+>>>javan, Member
+
+Reviewing the open handler and where it sets @disconnected is the only thing left to address before this can be merged, IMO.
+
+      
+>>>danielrhodes, Contributor
+
+Alright I changed the message handler to check @isActive instead. It works the same. I don't quite understand why it worked with @disconnected even though as you pointed out there could be a race condition -- whatever underlying threading is going on obviously prioritized the close before the message is all I can surmise.
+
+      
+>>>jeremy, Owner
+
+Re. subscription requests before welcome: we buffer incoming messages and process the buffer after welcome, so sending early subscription requests should work as expected.
+
+>>>Thread end
+
+>>>javan, Member
+
+;##D91 Is there any issue deploying server-side changes while clisents have previous assets?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Looking great! Any issues deploying the server-side changes while clients still have the previous .js assets running?
+
+>>>danielrhodes, Contributor
+
+;##D92 If the client doesn't send protocols, the server won't
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D91
+;##SEN NEU
+
+@javan There shouldn't be. If the client doesn't send any protocols it wants to use, the server won't either.
+
+>>>Thread start
+
+>>>javan, Member
+
+Sorry to nitpick, but add a newline after this comment please. Indicates that all methods below are "private", not just the isPorotocolSupported method.
+
+      
+>>>danielrhodes, Contributor
+
+👍
+
+>>>Thread end
+
+>>>danielrhodes, Contributor
+
+Squashed the commits for squashlover7, err I mean @maclover7 :-P
+
+P.S. I've actually started to like squashing now too, even if it's a conspiracy to keep everybody's commit numbers low to suppress rankings.
+
+>>>Thread start
+
+>>>javan, Member
+
+This isn't right. @isActive is a function, not a property.
+
+;##D93 We want to check that the websocket is using a supported protocol
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I think we want to check that the WebSocket is using a supported protocol here so messages aren't received during the brief window after successfully connecting using an unsupported protocol.
+
+>>>danielrhodes, Contributor
+
+👍
+
+>>>Thread end
+
+>>>Thread start
+
+>>>javan, Member
+
+Not loving how this method reads now. The early return only guards against logging. I suggest:
+
+>>>danielrhodes, Contributor
+
+👍
+
+>>>Thread end
+
+>>>javan, Member
+
+OK to merge as far as I'm concerned. Thanks for sticking with this one @danielrhodes!
+
+>>>jeremy, Owner
+
+Fantastic work @danielrhodes!
+
+>>>kaspth, Owner
+
+Well done! ❤️
+
+>>>cdurante, Other
+
+is this typo?
+
+I see the the function isProtocolSupported, but not isSupportedProtocol
+
+[Error] TypeError: this.isSupportedProtocol is not a function. (In 'this.isSupportedProtocol()', 'this.isSupportedProtocol' is undefined) message (connection.self-7605b1bcff260663a68e0847ec3cfece34a28e2cb3c61fb59bcac2dfab6b6ad7.js:131) (anonymous function)
+
+>>>jeremy, Owner
+
+Sure is. Thanks @cdurante!
+

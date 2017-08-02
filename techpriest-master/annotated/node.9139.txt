@@ -1,0 +1,1136 @@
+>>>sam-github, Member
+
+
+Checklist
+
+ make -j8 test (UNIX), or vcbuild test nosign (Windows) passes
+
+ tests and/or benchmarks are included
+
+ documentation is changed or added
+
+ commit message follows commit guidelines
+
+Affected core subsystem(s)
+
+crypto,tls,https
+
+Description of change
+
+In closed environments, self-signed or privately signed certificates are
+commonly used, and rejected by Node.js since their root CAs are not
+well-known. Allow extending the set of well-known compiled-in CAs via
+environment, so they can be set as a matter of policy.
+
+Note that #8334 addresses a similar but not identical use-case, and works better for those (like linux distributions) that are willing to recompile Node.js to use OpenSSL's default certificate store. #8334
+doesn't address those who cannot recompile, do not have access to the system certificate store, or
+who are are on a system where the default certificate store is not exposed as an OpenSSL compatible
+store (for example, OS X and Windows).
+
+See #3159, #8334
+
+Partially fixes #4175 (particularly #4175 (comment)), and may also address Microsoft/tfs-cli#118 and apigee/microgateway-core#9 without forcing them to recompile node.
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+This function can be passed as a second argument to listen() to make things shorter.
+
+>>>mscdex, Contributor
+
+;##D1 Wrapping in a common.mustCall would increase safety
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+Also, you might wrap it in a common.mustCall() to be extra safe.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, edited
+
+;##D2 It would be better to set variables in the config
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+It would be better to instead set these variables in the config object passed to fork():
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+This should be indented more to align with the other function arguments.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+&& should be at end of the previous line.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+This should be indented more to align with the other function arguments.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+There's an extra space between 'the' and 'well'.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+There's an extra space before 'A message'.
+
+>>>Thread end
+
+>>>mscdex, Contributor
+
+;##D3 fprintf should be replaced with process.emitwarning
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+I think the fprintf()s should be replaced with a call to process.emitWarning(). I'm not sure if there is already something in node internals that only emits a warning once that could be reused.
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Typo: extra
+
+>>>Thread end
+
+>>>sam-github, Member
+
+I'll look around to see if I can call process.emitWarning() from C++.
+
+;##D4 Should the pre-existing frpintf also be emitWarning?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL GEN D3
+;##SEN NEU
+Note that there is a pre-existing fprintf(stderr, ... statement at https://github.com/nodejs/node/blob/7014566273ecef5bb28822a66fec0c1e625f30fb/src/node_crypto.cc#L5788, should it be emitWarning, too?
+
+>>>mscdex, Contributor
+
+;##D5 No, since it will abort right after
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D4
+;##SEN NEU
+@sam-github No, because that's a more fatal error and the process will abort after it prints that message.
+
+>>>sam-github, Member
+
+@mscdex @bnoordhuis Now calling process.emitWarning(), PTAL
+
+Also, a design detail: currently, the value of the NODE_EXTRA_CA_CERTS is retrieved from env during node startup. So, this doesn't work as maybe someone would hope:
+
+;##D6 It could be possible to use secure_getenv during init 
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+It would be possible to call secure_getenv() during the root store initialization to enable the above usage.
+
+;##D7 But the current usage is more consistent with node practices
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D6
+;##SEN NEU
+But, I think how it is now is consistent with general node practice, and that anyone who can edit the program source could also just provide the extra CA certs themselves via the options.
+
+Agreed?
+
+>>>sam-github, Member
+
+If the call to emitWarning() from c++ is OK, I will update the docs and add a unit test.
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+;##D8 Can't we jus tcall server.close inside the handler?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+Is this necessary? What about just calling server.close() inside the server's connection handler?
+
+>>>sam-github, Member
+
+;##D9 Unref allows a graceful close
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D8
+;##SEN NEU
+I don't really mind, though I don't see how that is preferable. unref allows node to close gracefully when it has nothing else to do, closing would also have the same effect, why is it better?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>mscdex, Contributor
+
+;##D10 Using makecallback would be better than a difrect call
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+It might be better to use MakeCallback() here instead of calling it directly.
+
+>>>mhdawson, Contributor
+
+;##D11 When would makecallback be used over call?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL GEN D10
+;##SEN NEU
+@mscdex, for my benefit when would you suggest MakeCallback instead of Call or vice versa. I see that existing code has a mix of both.
+
+>>>mscdex, edited
+
+;##D12 Always because of domains/async_hooks
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D11
+;##SEN NEU
+I assume MakeCallback() should almost always be used because of domains/async_hooks and such?
+
+>>>mhdawson, Contributor
+
+;##D13 Unelss there a reaosn to avoid tickCallback, MakeCallback should be preferred over call
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D11
+;##SEN NEU
+I did find this more detailed discussion on the topic from a while back: nodejs/nan#284. I think the net is that unless you have a specific reason that you don't want process._tickCallback() to be called, then MakeCallback() is preferred over the direct Call.
+
+>>>sam-github, Member
+
+@mhdawson 's link above says
+
+The latter (MakeCallback) case calls the JS callback function, but then also ends the current tick, calling process._tickCallback() and any other callbacks registered via nextTick(). This form is intended only for use by C++ code that was dispatched from the libuv event loop, and not for C++ code that was invoked from JS code.
+
+;##D14 Doesn't MakeCallback have a lot of side effcts?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL REFR D13
+;##SEN NEU
+It sounds like MakeCallback() has lots of side effects, are you sure its right? My usage seems to fit the "not C++ invoked from the event loop" case.
+
+;##D15 process.emitWarning wouldn't emit until the next tick
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D14
+;##SEN NEU
+It occured to me that process.emitWarning() could actually emit... which would call user code, but I checked, and it emits in the next tick, so isn't going to hit any user-supplied js.
+
+I don't know enough about the distinction to choose, I'll need some guidance here.
+
+>>>mhdawson, Contributor
+
+@bnoordhuis do you have an opinion on Call/MakeCallback in this instance ?
+
+>>>sam-github, Member
+
+;##D16 MakeCallback could cause microtasks
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D14
+;##SEN NEU
+
+;##D17 Should this code use Call or MakeCallback?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D11
+;##SEN NEU
+@trevnorris I think that MakeCallback can cause running microtasks as a side-effect (https://github.com/nodejs/node/blob/09d41e22cc9bd3c35b454dc239c616be12e26a73/src/node.cc#L1268), which would not be desireable, but I'm not sure how to demonstrate this. Trevor, you know this code, should usage like above use direct Call(), or node::MakeCallback()?
+
+My failed attempt at making a "microtask" :-( at https://gist.github.com/927a451526de55847d53694b53b01a20
+
+>>>Thread end
+
+>>>mhdawson, Contributor
+
+LGTM subject to fixing up @mscdex remaining comments.
+
+>>>sam-github, Member
+
+conversation in #9139 (comment) looks outdated because I added MakeCallback(), but it is not outdated. /to @bnoordhuis @trevnorris
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Should be static.
+
+>>>sam-github, Member
+
+done, note that root_certs a few lines above is not static, but appears that it could be (I was mirroring its definition). root_cert_store below is explicitly declared extern, it shouldn't be static.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+EmitWarning
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Don't leave dead code in.
+
+>>>sam-github, Member
+
+;##D18 MakeCallbacks seems to be designed for other cases than this
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+;##D19 Shouldn't this be a simple call?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D18
+;##SEN NEU
+
+Its not dead code. I am asking for confirmation that MakeCallbacks() is the right thing to do, I believe the #if 0 branch is the correct one, and that MakeCallbacks() is designed for callbacks from uv, and other async usage, not for this kind of direct js-to-c++-to-js usage. That it is leaking handles and running microtasks make it seem the wrong tool. @trevnorris @bnoordhuis Shouldn't this be a simple Call()?
+
+>>>bnoordhuis, Owner
+
+;##D20 Call is only safe for internal JS code
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D18
+;##SEN NEU
+Call() interacts poorly with domains and other mechanisms that hang off async_hooks so it's really only safe for internal JS code. W.r.t. handle leaks, Call does that as well (the return value.)
+
+>>>sam-github, edited
+
+;##D21 What qualifies as internal JS code?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL GEN D20
+;##SEN NEU
+
+;##D22 Is MakeCallback required to keep domain accounting correct?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D20
+;##SEN NEU
+@bnoordhuis what is "internal JS code"? In this case I am calling https://github.com/nodejs/node/blob/6845d6e3189cb6f7d2c847ab34a4f5b2eaf7a77f/lib/internal/process/warning.js#L28-L49, which is internal. It does nextTick a process.emit(), which can call user-code. Is that the difference here? That user code (process.on('warning', user....) was triggered from within createServer(), so we need to use MakeCallback() to keep the accounting correct for domains, etc.?
+
+;##D23 This is similar ot url.js, that uses Call
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D19
+;##SEN NEU
+Otherwise, this doesn't seem so different from url.js, which calls into c++ to do some work, and synchronously calls back with ->Call() to internal js code. Or node_http_parser, which uses Call() to call pushValueToArray(), a js function from lib/internal/bootstrap_node.js
+
+I (and @mhdawson , perhaps others), would like to understand the basic principle here, so I correctly distinguish between the two in the future.
+
+Also, with MakeCallback():
+
+;##D24 Is it possible to demonstrate that MakeCallback cause micro task?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL GEN D16
+;##SEN NEU
+How would I demonstrate that createServer(), when it uses MakeCallback(), is causing micro tasks and ticks to get called? Or do they not? I'm trying to see what the side-effects are, but couldn't prove there were any with https://gist.github.com/sam-github/927a451526de55847d53694b53b01a20 (I was looking to cause output between the BEGIN and END, which should not happen).
+
+I addressed your other comments, thanks, and I will fix the handle leak, looking into that now.
+
+>>>bnoordhuis, Owner
+
+;##D25 If emitWarning defers to the next tick, then call is fine
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D15
+;##SEN NEU
+Oh, that's a good point; I didn't realize emitWarning() defers to the next tick. In that case Call() should be fine.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+You can leave out the strlen().
+
+>>>bnoordhuis, Owner
+
+Oh, and you could write this as:
+
+It's a little more succinct but whatever you prefer.
+
+>>>sam-github, Member
+
+;##D26 The array was used because it's more idiomatic
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN ENU
+I did used the array form because I had the impression it was more idiomatic, but I simplified the code as you suggest.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D27 This needs a HandleScope to handle leaking handles
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+This function needs a HandleScope, it's leaking handles into the scope of the caller.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Style: BIO* bio = ...
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Arguments should line up here and below.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D28 This could possibly share code wit SSL_CTX_use_certificate_chain
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+;##D29 Having mark_op_error_on_return at the top would make handing the error stack unecessary
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+This function could share code with SSL_CTX_use_certificate_chain. Also, you could add a MarkPopErrorOnReturn mark_pop_error_on_return at the top so you don't have to manually juggle the error stack.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+You could use sc->env() here instead.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D30 This method should not be static, since LoadExtraCaCerts behave the same and it isn't
+;##ROLE PM
+;##INV T
+;##FORM SOl
+;##REL NEW
+;##SEN NEU
+It's kind of odd that this is a (static) method but LoadExtraCaCerts() is not. Neither manipulate SecureContext state so they probably shouldn't be methods, static or not.
+
+>>>Thread end
+
+>>>bnoordhuis, Owner
+
+;##D31 We could move much of the logic to JS land if we exposed the root CA
+;##ROLE PM
+;##INV PM
+;##FORM T
+;##REL SOL
+;##SEN NEU
+I have a feeling we can move much of the logic to JS land if we simply exposed the root CA list somewhere.
+
+>>>sam-github, Member
+
+;##D31 We could move much of the logic to JS land if we exposed the root CA
+;##ROLE OP
+;##INV PM
+;##FORM F
+;##REL SOL
+;##SEN NEU
+I have a feeling we can move much of the logic to JS land if we simply exposed the root CA list somewhere.
+
+;##D32 Exponsing is possible, but there are noc rypto APIs for some of the things
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D31
+;##SEN NEU
+It might be possible, and I'll add doing that to my list of crypto API improvements. Literally exposing the CA root list would require c++ to track when its changed. Also, there are no crypto APIs for reading PEM ATM, so its not possible to read in a cacert file, split it, and push the certs onto an array.
+
+I think its a useful idea, and if it happens, this code could be moved around, but would still function the same from an external point of view - it would be backwards compatible.
+
+All of which is to say, I'd like to get this in now to fix the problems downstream is having, and consider larger scale changes to the crypto API later.
+
+>>>sam-github, Member
+
+;##D33 THere doesn't seem to be a lot of code to share 
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL ELAB D28
+;##SEN NEU
+I've addressed all the comments. I looked at exposing the CA certs to js, see #9139 (comment), and I looked at SSL_CTX_use_certificate_chain() to see if there is common code, there is but not much, and its a lot of code churn.
+
+I've looked at exposing CA certs again, and I can think of a couple ways, but will take some more thought, there are too many ways it could be done.
+
+>>>Thread start
+
+>>>thefourtheye, Contributor
+
+Nit: nor
+
+>>>Thread end
+
+>>>sam-github, Member
+
+@bnoordhuis can you do the github dance, and confirm I made the changes you requested?
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D34 This should make a copy of the string to avoid pointer ivnalidation
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+Looking at this again, I think this should make a copy of the string because the pointer may get invalidated by subsequent env mutations.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D35 Using the overload method that takes Context and return MaybeLocal<Value> would be better
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+Can you put the part after the '=' on the next line and indent by four spaces? Also, can you use the overload that takes a v8::Context and returns a v8::MaybeLocal<v8::Value>?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+'internal code' and 'on the next tick'.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+You should do if (!f->IsFunction()) return; first.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, edited
+
+;##D36 ERR_clear_error is not needed if markpoperroronreturn is on the stack
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+You don't need to call ERR_clear_error() if you have a MarkPopErrorOnReturn on the stack.
+
+;##D37 USing ERR_peek_error is bad because it might pick existing errors
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+As well, using ERR_peek_error() is not really correct because it might pick up an existing error. I don't really know a good way around that except maybe for calling ERR_clear_error() on function entry or checking that ERR_get_state()->top changed.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+nullptr
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Tiny nit but the parameter is called file here in the header file but fname in the source file.
+
+>>>sam-github, Member
+
+source now consistent with header
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sam-github, Member
+
+@bnoordhuis I couldn't find the Get() that took a context, can I have more complete signature, or file/line no ref?
+
+>>>bnoordhuis, Owner
+
+It's this one: https://github.com/nodejs/node/blob/v7.0.0/deps/v8/include/v8.h#L2713
+
+>>>Thread end
+
+>>>Thread start
+
+>>>sam-github, Member
+
+;##D38 pop might not be necessaery since the only caller of this is clearerroronreturn
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@bnoordhuis I don't know if this is worth leaving in, the only caller of this function uses ClearErrorOnReturn, so this pop isn't necessary. Still, it should be fast, and extra certs are only loaded once, anyhow.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D39 Since it's a copy, you could convert it to string
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Since you're making a copy, you might as well change extra_root_certs_file to std::string.
+
+>>>indutny, Owner
+
+Totally agree, std::string should be a way to go for this kind of thing.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Can you drop the trailing blank line?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>indutny, Owner
+
+;##D40 THis will happen before OpenSSL init, it would be better in node_crypto.cc init
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This will happen before OpenSSL's initialization. I'd rather do it in the node_crypto.cc's Initialize. Cons: error messages are not loaded yet at this point.
+
+>>>sam-github, Member
+
+;##D41 Would you move the check for env vars to node_crypto init?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D40
+;##SEN NEU
+@indutny I'm not totally clear on what you would like. Would you like me to move the check for the environment variable from node.cc to node_crypto.cc:Initialize()? It seemed all the env var checking was done in node.cc, and secure_getenv() is only defined there, but I can export secure_getenv() in node_internal.h and call it from node_crypto.cc, is that what you suggest?
+
+;##D42 UseExtraCaCert doesn't do anything other than assigning a string and reutrn, so it doesn't matter where it is called
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Note UseExtraCaCerts() doesn't actually do anything other than assign a std::string of the file name, and return, so whether it happens before or after node_crypto initialization or message loading doesn't matter, because there are no messages needed.
+
+>>>indutny, Owner
+
+ah well, ok then!
+
+>>>Thread end
+
+>>>Thread start
+
+>>>indutny, Owner
+
+Totally agree, std::string should be a way to go for this kind of thing.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>indutny, Owner
+
+Nit: it should be double newline here.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>indutny, Owner
+
+;##D43 This doesn't belong to node_crypto, it coudl be moved to node.cc
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This doesn't belong to node_crypto.cc. Perhaps node.cc and a declaration in node_internals.h?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>indutny, Owner
+
+;##D44 How does this work with domains?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEu
+
+How does it play with domains?
+
+>>>indutny, Owner
+
+;##D45 And what's the relation with async_hook?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL ELAB D44
+;##SEN NEU
+
+And async_hook? I think we should be doing MakeCallback wherever it is possible.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>jasnell, Owner
+
+;##D46 Haivng a listener for process.on('warning') would be a better approach
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Setting a listener for the process.on('warning') event would likely be better.
+
+>>>sam-github, Member
+
+;##D47 The warning is ocrruing in a sub process, not int he parent
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D46
+;##SEN NEU
+@jasnell I think you missed that the warning is occuring in a sub process, and this code is in the parent where it is doing the assert, this code is confirming that the child process had a warning
+
+>>>jasnell, Owner
+
+;##D48 It can still be added to the child with an assert
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D47
+;##SEN NEU
+The process.on('warning') can be added in the child process with either an assert or a common.mustCall(). The parent can then check the exit code to ensure that the child completed successfully. Just a suggestion tho, not critical by any means.
+
+>>>Thread end
+
+>>>sam-github, Member
+
+@indutny I can't find the below comments above, but I can in email, you said:
+
+How does it play with domains?
+And async_hook? I think we should be doing MakeCallback wherever it is possible.
+
+;##D49 MakeCallback does the wrong thing for this kind of thing
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D44
+;##SEN NEU
+I don't understand the async machinery sufficiently, but from what I can see MakeCallback is for calling user code, and does the wrong thing for this kind of completely internal call to node's own JS layer, which is not really a "callback", not in the uv/node sense. There are even reports of it causing nasty and subtle bugs when used inappropriately: nodejs/nan#284
+
+@bnoordhuis agreed Call() was correct: #9139 (comment)
+
+I will do whatever you and @bnoordhuis agree is the right thing. And wish that @trevnorris would chime in, he wrote the async wrapper, he should be able to clarify when it is or is not correct to use it.
+
+>>>sam-github, Member
+
+I'm in process of moving EmitWarning to node.cc. EDIT: moved
+
+>>>sam-github, Member
+
+Addressed all comments, awaiting clarification on
+
+#9139 (comment), where to move the getenv
+
+#9139 (comment), whether MakeCallback() is right or wrong
+
+>>>Thread start
+
+>>>indutny, Owner
+
+ah well, ok then!
+
+>>>Thread end
+
+>>>Thread start
+
+>>>indutny, Owner
+
+;##D50 This could also be replace to take a string as argument
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SENNEU
+
+I guess it can receive std::string as an argument here too.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>indutny, Owner
+
+extra_root_certs_file.empty()?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+emit_warning
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D51 Would it be possible to line up the arguments and call .c_str() explictily?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Can you line up the arguments and call .c_str() explicitly?
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+Ditto.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D52 It could be convenient to add a filename aeg
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+It might be nice to add a const char* filename argument and change this to:
+
+>>>sam-github, Member
+
+ok, reworked LoadExtraCaCerts() so its less specific to this purpose
+
+>>>Thread end
+
+>>>sam-github, Member
+
+@bnoordhuis Removed internal use of global extra_ca_cert_file, instead passing file as a parameter, as you suggested. Did the same for the cert store, as well.
+
+@indutny Use std::string for file name in UseExtraCaCerts().
+
+Also added lint boilerplate, it doesn't like global std::strings or openssl's error type.
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D53 Rewriting this would prevert a double lookup
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+You can write this as if (const char* var = secure_getenv("NODE_EXTRA_CA_CERTS")) to avoid doing the lookup twice.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>bnoordhuis, Owner
+
+;##D54 Encoding need to be set to utf8 if the chunks are to be joined later
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SENNEU
+
+You should .stderr.setEncoding('utf8') if you are going to join the chunks later.
+
+>>>Thread end
+
+>>>sam-github, Member
+
+;##D55 What are the conditions for setEncoding to be necessary
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL GEN D54
+;##SEN NEU
+
+;##D56 Would it require a non-utf8 console?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL ELAB D55
+;##SEN NEU
+
+@bnoordhuis done. Under what conditions is the setEncoding() necessary? Would I need to set my console to non-utf8?
+
+>>>sam-github, Member
+
+ci: https://ci.nodejs.org/job/node-test-pull-request/4806/
+
+>>>bnoordhuis, Owner
+
+;##D57 What are the conditions for setEncoding to be necessary
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL GEN D54
+;##SEN NEU
+
+;##D58 Would it require a non-utf8 console?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL ELAB D57
+;##SEN NEU
+
+Under what conditions is the setEncoding() necessary? Would I need to set my console to non-utf8?
+
+;##D59 or utf-8 and have multi-byte split over two buffers
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D57
+;##SEN NEU
+
+Or UTF-8 and have a multi-byte sequence split across two buffers; .setEncoding('utf8') takes care of reassembling them again.
+
+It's academic if the test only outputs ASCII but putting that .setEncoding in there makes it Obviously Correct, the next person looking at that file won't have to think twice about it.
+
+>>>sam-github, Member
+
+Or UTF-8 and have a multi-byte sequence split across two buffers
+
+Thanks, that makes sense, each buffer would be invalid utf8 standalone, so doing [buffers...].join(\n') would convert to invalid strings before joining, I'd have to do Buffer.concat([buffers...]).toString() to reassemble into valid utf.
+
+>>>sam-github, Member
+
+ci: https://ci.nodejs.org/job/node-test-pull-request/4947/
+
+>>>sam-github, Member
+
+Hm, the windows failure was in https://ci.nodejs.org/job/node-test-binary-windows/4891/RUN_SUBSET=1,VS_VERSION=vcbt2015,label=win10/tapTestReport/, but there isn't any hint as to why.
+
+>>>mhdawson, Contributor
+
+? think it was saying this assert fired 👍
+
+ie the string it got did not match what was specified in the test.
+
+>>>sam-github, Member
+
+Thanks, @mhdawson, I looked a bit harder, I found the string. The backslashes are being treated as regex meta-chars. :-( I'll fix and retry.
+
+>>>sam-github, Member
+
+ci: https://ci.nodejs.org/job/node-test-pull-request/4951/
+
+>>>sam-github, Member
+
+Landed in 213134f, fd644f5
+
+>>>sam-github, Member
+
+@TheAlphaNerd these don't land clean on v4/v6, so I started backports (which are in process of building).
+
+Not sure if I should backport to v7, how does that work, do all minors on master get auto-backported to v7?
+
+Also not sure what tags I need where.
+
+>>>MylesBorins, Owner
+
+@sam-github generally we don't backport semver-minor commits unless they have been approved by the lts wg
+
+I've added it to the agenda to discuss at the next meeting
+
+>>>sam-github, Member
+
+OK, thanks. Do I need to make a case for it?
+
+Its causing us problems in production, we need to modify source of 30+ apps in order to inject trust roots for internal microservices, so I'd like it to be available on common LTS stable nodes. Its also low risk - it does absolutely nothing unless the env var is set.
+
+>>>amarzavery, Contributor
+
+We have a similar issue reported by a customer using azure-cli Azure/azure-xplat-cli#2990.
+
+Since this is merged, is this available on a version of 4.x as we ship that in the MSI and the mac pkg?
+
+>>>richardlau, Member
+
+@amarzavery This is only merged into master, it is not available in any released version yet.
+
+>>>amarzavery, Contributor
+
+@richardlau - Any idea when will this be available for a 4.x version?
+
+>>>MylesBorins, Owner
+
+@amarzavery it will need to live in a Current release for at least 2 weeks before being able to be a candidate for LTS. At that point we will be able to land it in a future Semver-Minor version of v4.x
+
+As we have a Semver-Minor release planned for release on Tuesday, it might 2 - 3 months before this would be able to land in v4.x
+
+>>>sam-github, Member
+
+I'd like to propose this be accelerated. The change is low-risk... if you don't set the env var it does nothing, and it addresses some fairly severe usability issues with node, see @amarzavery, its also an issue for IBM internal services that are running on Node v4/v6, and also for node-gyp, when running through proxies. It seems to be reported a lot by corportate node users, behind HTTPS proxies and other network equipment.
+
+>>>destroyerofbuilds, Contributor
+
+According to Node's Release page, Node 7.2.1 was released today.
+
+Node 7.2.1 did not contain the certificate enhancement.
+
+The Node LTS release schedule is documented here - nodejs/LTS#159
+
+Because changes must be in a Current release of Node for at least 2 weeks before it may be backported, it seems unlikely the certificate enhancement will be in a Current release for a sufficiently long time to permit backporting into the next LTS release in January.
+
+>>>sam-github, Member
+
+@destroyerofbuilds @TheAlphaNerd @Fishrock123 @mhdawson OK, I clearly don't get how current releases are built. I thought they would contain all non semver-major commits on master. What do they get composed of? When are they built? What do I have to do to get this into 7.2.2? I backported it to 4.x and 6.x, was I supposed to back-port it to 7.x as well? And are there any docs or issues anywhere that describe this process? Because if so, I'll go read them.
+
+>>>bnoordhuis, Owner
+
+It's tagged semver-minor, i.e., it's not a patch and won't go into a patch release. The next eligible release is v7.3.0.
+
+>>>coolaj86, Contributor
+
+As far as splitting certs into a JavaScript array goes, feel free to nab some of the code from https://github.com/Daplie/node-ssl-root-cas
+
+Noted at Daplie/node-ssl-root-cas#31
+
+>>>sam-github, Member
+
+@coolaj86 Why would it be necessary to split certs into an array?
+
+And thanks for the ref in your docs ... your module actually downloads the latest version of the certs, whereas the env var just adds the extras if they already exist, so its not a complete replacement, but its one more tool in the box.
+
+>>>coolaj86, Contributor
+
+@sam-github it was just something you mentioned up in one of your previous comments (related to what Ben said about having it in pure JS). The same code I use for splitting the certs from mozilla I believe could be used to split certs in other pems (I recall the formats being the same, but with special comments in the mozilla ca roots list).
+

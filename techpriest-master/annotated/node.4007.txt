@@ -1,0 +1,3221 @@
+>>>Fishrock123, Owner
+
+
+Commit 1
+
+
+Consolidates the implementation of regular and internal (_unrefActive)
+timers.
+
+
+Includes an optimization for listOnTimeout() that previously only
+internal timers had. (_runOnTimeout)
+
+
+Also includes some minor other cleanup.
+
+
+Commit 2
+
+
+Describes the How and Why of the timers implementation, as well as
+adding comments in spots that should allow for an easier understanding
+of what is going on.
+
+
+The timers implementation is very efficient, at a cost.
+That cost is readable understandability, and this aims to improve that.
+
+
+
+cc @bnoordhuis / @piscisaureus / @trevnorris / @misterdjules / etc?
+This attempts to improve the timers implementation by consolidating the internal and regular timer logic.
+I have not yet run performance testing / profiling on this, so feel free to help me out there if you are able to but I will hopefully be able to get to it shortly.
+Tests pass locally, CI: https://ci.nodejs.org/job/node-test-commit/1237/
+
+
+;##D1 Need some thoughts on the comments
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+cc @nodejs/documentation and @nodejs/inclusivity I'd like thoughts on the format of the comments and their content and if they fit in well as code comments, as well as how understandable this is to people who are unfamiliar with the code.
+
+>>>Fishrock123, Owner
+
+
+There is possibly a better way of doing this.
+
+
+
+;##D2 We need to be able to say if TimeweWrap is unrefed or not
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+In a nutshell we need to be able to tell if a specific list (TimerWrap) is (supposed to be) unrefed or not.
+
+
+I'm not to worried about people messing with these top-level handles from C++ though.
+
+
+>>>alexlamsl, Other
+
+
+
+;##D3 We could just store a reference to it?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL ELAB D2
+;##SEN NEW
+
+Could just store a reference to lists so just have one-line delete instead of branch down there?
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D4 The timer constructor needs _unrefed = false
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN nEU
+
+Make sure you add _unrefed = false or similar to the Timer constructor, or you're mutating the object map.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D5 A possilbe name would be _parent
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D3
+;##SEN NEU
+
+@alexlamsl like maybe _parent?
+
+
+@trevnorris good catch.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D6 That doesn't apply to Timer
+;##ROLE OP
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL REFR D4
+;##SEN NEU
+
+Actually, that doesn't apply to Timer, this sets it on the list not the timer itself. :)
+
+
+>>>alexlamsl, Other
+
+
+
+;##D7 We could also use list._parent[msescs]
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D5
+;##SEN NEU
+
+@Fishrock123 yes _parent sounds good, then down below you can do delete list._parent[msecs]; instead of
+
+
+
+
+>>>alexlamsl, Other
+
+
+
+;##D8 Isn't list a Time?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL REFR D6
+;##SEN
+
+@Fishrock123 isn't list a Timer object, as declared a few lines above?
+
+
+>>>Fishrock123, Owner
+
+
+@alexlamsl Ah, I thought he was referring to Timeout. This is a TimerWrap, imported as Timer.
+
+
+
+;##D9 Was that referred to TimerWrap or Timeout?
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL REFR D6
+;##SEN NEU
+
+@trevnorris were you referring to Timer, as in TimerWrap, or Timeout?
+
+
+>>>trevnorris, Contributor
+
+
+
+
+
+EDIT: nm. forgot that Timer comes from node::TimerWrap::New() in src/timer_wrap.cc.
+
+
+>>>beaugunderson, Member
+
+
+@Fishrock123 typo: efficent → efficient
+
+
+>>>Trott, Owner
+
+
+Super-micro-nits: fast and efficient is kind of redundant here. You can probably just say fast. Or efficient. You can probably also remove both instances of very from the sentence. Lastly, I think therefore is more natural and less confusing than as such. Therefore, it is important that the timers implementation be efficient.
+
+
+I promise not to do this for every sentence in the comments.
+
+
+>>>Fishrock123, Owner
+
+
+"fast" and "efficient" do not necessarily overlap here.
+
+
+There is both execution speed and resource usage. :)
+
+
+>>>Fishrock123, Owner
+
+
+@sup & @beaugunderson Thanks, Atom's spelling detection isn't very good unfortunately. :(
+
+
+>>>pnn, Contributor
+
+
+@Fishrock123 overall, i have to say i'm very impressed. if only all lib files were documented this well...
+
+
+
+;##D10 We should include a difficulty rating
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+the only thing i'd suggest is maybe having a kind of difficulty rating referring to how complex and hard to understand the code and the explaining comments are. sadly, you can't easily explain some things :(
+
+
+but that's just an idea, and would maybe make more sense if, well, all lib files were documented this well.
+
+
+LGTM once the spelling errors are fixed ^^
+
+
+>>>jscissr, Contributor
+
+
+typo: mili → milli
+
+
+>>>Trott, Owner
+
+
+This is awesome. The resulting code is much easier to understand. The comments are helpful too.
+
+
+>>>alexlamsl, Other
+
+
+
+;##D11 We could save a branch clause by doing this
+;##ROLE  ETC
+;##INV T
+;##BCOM T
+;##FORM SOl
+;##REL NEW
+;##SEN NEU
+
+Why not var list = lists[msecs] and save a branch clause below?
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D12 It migth nto exists yet
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D11
+;##SEN NEU
+
+It might not exist yet, so we need to be able to check that make a new one if it does not exist yet.
+
+
+>>>alexlamsl, Other
+
+
+What I meant is instead of
+
+
+
+
+How about
+
+
+
+
+>>>Fishrock123, Owner
+
+
+Ah, that sounds good, yeah.
+
+
+>>>trevnorris, Contributor
+
+
+try/catch -> try/finally
+
+
+>>>sindresorhus, Other
+
+
+JavScript => JavaScript
+
+
+>>>sindresorhus, Other
+
+
+descirbed => described
+
+
+>>>sindresorhus, Other
+
+
+of => if
+
+
+>>>sindresorhus, Other
+
+
+convinience => convenience
+
+
+>>>chrisdickinson, Contributor
+
+
+typo: implementaion
+
+
+>>>chrisdickinson, Contributor
+
+
+
+;##D13 This part needs a lot of clarification
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+This sentence could use some clarification, I think — is the situation that the linked list container is a TimerWrap C++ handle, or that the head of the linked list is a TimerWrap? Are each of the subsequent items in the list TimerWrap instances, or just that initial object? (IIRC, it's just the one object to avoid ping-ponging between C++ and JS, and the following info seems to corroborate that)
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D14 Effectively it's the container
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D13
+;##SEN NEU
+
+It's the initial object per se, but effectively the "container" -- this is an object-property linked list though, so there is no true container.
+
+
+
+;##D15 This also causes the timeout
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D14
+;##SEN NEU
+
+It's also the thing that actually causes the timeout to happen also though.
+
+
+>>>chrisdickinson, Contributor
+
+
+In that case, maybe something along these lines:
+
+
+
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D16 Do we have a policy about non-ASCII characters?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+do we have a policy on non-ASCII characters in source?
+
+
+>>>Fishrock123, Owner
+
+
+meh, ->, easy.
+
+
+>>>Fishrock123, Owner
+
+
+
+
+
+
+
+
+I don't think that's actually correct though.
+
+
+
+
+
+i.e. it's more like:
+
+
+
+
+
+
+;##D17 The object from wich the timer is taken is always a TimerWrap
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The object you're getting the timers of off is always a TimerWrap at the start, but even though when "empty" the properties will point to itself, it will return null.
+
+
+Not sure if that is important or how to articulate it better..
+
+
+>>>Fishrock123, Owner
+
+
+(Basically, read the linked list impl)
+
+
+>>>chrisdickinson, Contributor
+
+
+Ah, in this case it'd probably be better to phrase
+
+
+
+
+
+;##D18 It would be helpful to remain consistent with the naming
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+As "the map associates millisecond durations with C++ TimerWrap objects, which have been augmented with linked list properties (see ./lib/internal/_linklist.js)." Also, it would be helpful to use consistent naming for that binding — we've imported it here as Timer, but in the comments we refer to it as TimerWrap. Juggling TimerWrap, Timer, and Timeout can get confusing quickly!
+
+
+>>>chrisdickinson, Contributor
+
+
+
+;##D19 'Later' needs a clarification
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+for later in this case could mean temporally later (as in, "later today"), or spatially later (as in, "later in the array"), or both — it might be good to clarify which is meant here.
+
+
+>>>Fishrock123, Owner
+
+
+"for a later time"?
+
+
+>>>Fishrock123, Owner
+
+
+
+
+
+
+
+
+This is incorrect, I am wrong. @piscisaureus was right about the efficiency of the regular timers impl.
+
+
+
+;##D20 I'm not sure why this  was supposed ot be efficient
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Heck, even after all of this I still didn't clue 100% into why this was supposed to be so efficient.
+
+
+
+;##D21 insert() follows libev guide
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D20
+;##SEN NEU
+
+insert() doesn't actually insert, it only appends to the linked list. That is, it follows the libev guide closer than I had previously understood.
+
+
+Example:
+
+
+You only ever need to append to a list of timers scheduled for 50ms because even if you schedule two timers at the same time, none will ever be sooner than that timeout time, or an existing timeout, within that 50ms list.
+
+
+On timeout, we only need to check the start of the list for timers that need to timeout. This is because all of those timers will only ever have a 50ms timeout, and so any timers past the first one that we don't need to timeout yet will also have a due date later than the current timeout, since they are all 50ms and must have been scheduled later than we first timed out.
+
+
+>>>Fishrock123, Owner
+
+
+I have now updated the PR with comments now correctly describing how exactly it works.
+
+
+
+;##D22 It doesn't seem possible to have a better implementatio
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+All operations in the JavaScript layer are virtually constant time. What we have effectively acts as a timer wheel. I do not think it is possible to make a better overall implementation.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D23 Not setting process.domain to null could break existing tests
+;##ROLE ETC
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+At first sight, it seems that not setting process.domain to null would break test/parallel/test-domain-exit-dispose-again.js now that #3990 landed.
+
+
+>>>alexlamsl, Other
+
+
+@Fishrock123 friendly poke in case the code suggestion above got buried in parallel discussions...
+
+
+>>>Fishrock123, Owner
+
+
+I still have them In mind, I'm just thinking of the best way to go about things.
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules hmmm, let's find out:
+
+
+CI rebased onto master: https://ci.nodejs.org/job/node-test-pull-request/866/
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123 Confirmed.
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules Indeed. New CI: https://ci.nodejs.org/job/node-test-pull-request/867/
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D24 This comment should be removed
+;##ROLE ETC
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+This comment is obsolete, and doesn't describe the current state of the code base. It seems that this PR is a good opportunity to remove it.
+
+
+>>>Fishrock123, Owner
+
+
+Noted, I'll take a look at it in detail.
+
+
+>>>Fishrock123, Owner
+
+
+Hmmm, the comment was originally added in b221fe9 and then updated for domains in 4401bb4. However, it used to continue.
+
+
+
+;##D25 Maybe we are missing a test?
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM OPQ
+;##REL ELAB D24
+;##SEN NEU
+
+I think I may have made a mistake here having it return as it it did in the original _unrefActive(), perhaps we are missing a test for this?
+
+
+>>>chrisdickinson, Contributor
+
+
+Might simplify wording here (and answer "in comparison to what?"):
+
+
+"Certain operations carry minor overhead. This overhead is limited to the operation of accessing a specific list from the map, and the creation of new lists. Since these operations are infrequent, the effects of the overhead are negligible."
+
+
+>>>Fishrock123, Owner
+
+
+
+
+Since these operations are infrequent
+
+
+
+
+
+;##D26 Operations are sitll frequent
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+That's not true though. We technically still have to do a map lookup every insertion, but it's not O(n) since it's not actually affected by the number of timeouts, but rather the number of different timeout durations your program is using. Also, I'm not really sure how fast the JavaScript object/map lookups are, but they are pretty fast in comparison to doing a linked list insertion (not append). :/
+
+
+(@bnoordhuis might know?)
+
+
+>>>chrisdickinson, Contributor
+
+
+Some questions:
+
+
+;##D27 What is constant-time timeout?
+;##ROLE ETC
+;##INV F
+;##BCOM	F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What is constant-time timeout?
+
+;##D28 Do we support insertion or just append?
+;##ROLE ETC
+;##INV F
+;##BCOM	F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Do we support insertion? Or just append?
+
+;##D29 Do we reuse the leading TimerWrap object across ticks?
+;##ROLE ETC
+;##INV F
+;##BCOM	F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Do we re-use the leading TimerWrap object across ticks? For example: if you setTimeout(_=>setTimeout(_=>_, 50), 50), does the timer object get reused since a later tick placed a Timeout in the queue for 50 ms?
+
+
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D30 Would adding the complexity help?
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM OPQ
+;##REL ELAB D27
+;##SEN NEU
+Would putting O(1) there help? beyond there, "wiki big-o notation". :s
+
+;##D31 We do insert, but we don't focus on it
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL ELAB D28
+;##SEN NEU
+
+That's tricky. Technically we insert into the map, but that's not what we focus on, because it's perf cost is usually trivial
+
+;##D32 We probably do
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL ELAB D29
+;##SEN NEU
+
+In your example: probably, so long as you are inserting within the same timeout as the last one you are removing. i.e. Calling in nextTick would make a new handle. (Assuming that is the olny 50ms timer)
+
+
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D33 We could just leave that out
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL REFR D32
+;##SEN NEU
+
+For 3., I think it may just be better to leave that point up to reading the impl. It doesn't have much to do with the overall architecture at that point.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D34 In our case it's a shift() operation
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL REFR D28
+;##SEN NEU
+
+@chrisdickinson I think I understand what you're trying to get to for 1. -- This language is usually used when referring to the operation that times out the timers as it is usually not the same as removing an arbitrary timeout, and certainly isn't in our case. In our case it is effectively a "shift()" operation.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D35 What does entirely lazy mean?
+;##ROLE ETC
+;##INV T
+;##BCOM	F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What does "entirely lazy" mean in this context?
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D36 Do as little as possible
+;##ROLE OP
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL ELAB D36
+;##SEN NEU
+
+Something like "Do as little as possible only when needed"
+
+
+>>>misterdjules, Contributor
+
+
+Typo in "timeouts"?
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D37 This needs better indication to what it refers to
+;##ROLE ETC
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Any less-than constant overhead is left for a lower and inherently faster layer to handle. seems a bit vague and requires implicit knowledge of other layers. I imagine this refers to the way libuv handles actual timers? Maybe we should give more precise information here to what we refer, or just not mention it.
+
+
+>>>Fishrock123, Owner
+
+
+Would this be better?
+
+
+
+
+Any less-than constant overhead is contained within the TimerWrap's libuv bindings.
+
+
+
+
+I actually should take a look at libuv timers after this, ideally, we'd also use the same sort of implementation we have here in libuv and then just hand off anything truly O(n) to the OS / Processor.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D38 This is highly subjective
+;##ROLE ETC
+;##INV T
+;##BCOM	F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+That seems highly subjective and unnecessary in a description of how a subsystem works.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D39 We really cannot do better than this
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D38
+;##SEN NEU
+
+Possibly, but you really can't do better than O(<number of different durations>) insertion and O(1) everything else. I can remove it if you'd like.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D40 Should _called be set in _runOnTimeout?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Should _called be set in _runOnTimeout instead? It seems the two are directly related and that separating them could lead to _called being set at an inappropriate time if _runOnTimeout is called at a different time in a future refactoring.
+
+
+>>>Fishrock123, Owner
+
+
+
+
+_runOnTimeout is called at a different time in a future refactoring.
+
+
+
+
+
+;##D41 _runOnTimeout() is only for optimizatio
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D40
+;##SEN NEU
+
+_runOnTimeout() is specifically not for convenience. As noted in it's comment it is only a perf optimization.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D42 We should specify that it's a TimerWrap
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The backing handle is a bit vague on what type of handle it is, I would suggest specifying it's a TimerWrap instance.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D43 Internal timers were handled separatelyso that they would use only one TimerWrap
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+One of the reasons why internal timers were handled in a different list was so that they use only one TimerWrap instance. That is, all internal timers, regardless of their delay, would use the same underlying timer. I believe this was done to prevent the creation of a lot of underlying timers and because at that time the implementers believed that this would hurt performance.
+
+
+
+;##D44 Deos anyone have more context on this?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D43
+;##SEN NEU
+
+@nodejs/ctc Does anyone have more context around this (benchmarks, sample code that shows pathological cases, etc.)? I started working on timers after internal timers were implemented, and so I'm not familiar with the details behind that decision.
+
+
+>>>Fishrock123, Owner
+
+
+
+
+I believe this was done to prevent the creation of a lot of underlying timers and because at that time the implementers believed that this would hurt performance.
+
+
+Does anyone have more context around this (benchmarks, sample code that shows pathological cases, etc.)? I started working on timers after internal timers were implemented, and so I'm not familiar with the details behind that decision.
+
+
+
+
+
+;##D45 It's possible that TJ didn't get the impelmentation
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELA D43
+;##SEN NEU
+
+Nothing personal to TJ, but due to the fact that the original internal timers implementation was a sorted linked-list insert (O(n)), I'm lead to believe that TJ quite possibly just didn't fully understand the regular implementation. Considering there was no review it's quite probable the current internal timers implementation was somewhat of an impulsive mistake. f46ad01
+
+
+
+;##D46 This reverts the implementation back to the original
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D45
+;##SEN NEU
+
+This actually reverts the timer implementation to the original, with the added benefit that it also supports implicitly unreferenced (internal) timers. There were never perf / memory problems with the original as far as I can tell.
+
+
+>>>misterdjules, Contributor
+
+
+For instance,  _unrefActive is used to update the date cache for HTTP response headers. Under heavy load, it is possible to create one timer handle every second with the code in this PR whereas the current _unrefActive implementation would create just one timer handle the first time utcDate is called.
+
+
+
+;##D47 The change might just be premature optimization
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D46
+;##SEN NEU
+
+Your benchmarks suggest it doesn't have any impact on CPU usage, so it may very well be a premature optimization.
+
+
+At least today except for the utcDate implementation, I can't think of a realistic/common use case where this optimization would apply in node's source, and even in this case it doesn't seem to have a significant impact.
+
+
+>>>Fishrock123, Owner
+
+
+Wait, one timer handle a second is almost nothing, I'm testing making... tens of thousands per second? ...
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D48 Is there any results on the tests mentioned?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@Fishrock123 Do you have any results form the tests mentioned in your comment above?
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123 Thank you for doing this, it seems clear that it will improve the readability of the timers module.
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123
+
+
+
+
+I have not yet run performance testing / profiling on this
+
+
+
+
+Did you have some time to run performance tests and profiling? We'll need these results and a detailed description of the methodology you used to run them to be able to review these changes.
+
+
+>>>indutny, Owner
+
+
+How come this PR did not mention ctc or collaborators for two days? :) I don't see the issues that does not have mentions!
+
+
+>>>Fishrock123, Owner
+
+
+@indutny idk I don't like always spamming everyone's inboxes right away. :)
+
+
+@nodejs/ctc ptal
+
+
+>>>Fishrock123, Owner
+
+
+
+
+Did you have some time to run performance tests and profiling?
+
+
+
+
+Yes. See https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007, possibly more to come but tbh it appears unnecessary.
+
+
+
+
+We'll need these results and a detailed description of the methodology you used to run them to be able to review these changes.
+
+
+
+
+
+;##D49 The result is objectively better
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+It's actually also objectively better. If you pay careful attention, we replaced an O(n) onTimeout for internal timers with a O(x) (Where x is the number of different timeout durations.) "insertion", where the only insertion is a map lookup of possible durations, and the actual scheduling is an O(1) append.
+
+
+Oh and it's easier to read.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D50 THe more timeots there are on the same duration, the more core is efficient
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D49
+;##SEN NEU
+
+A note on the O(x) insertions. That x will only be affected by things that use _unrefActive() and not user timers. The more timeouts of the same duration that core uses the more efficient this will be.
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123 Thank you for the benchmarks results.
+
+
+
+;##D51 It would be interesting to see the results for multiple runs
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+It's interesting to see that the number of requests/second handled with the code in this PR is slightly lower for test1: 4648.92 vs 4701.17. It would be interesting to see the distribution of results over a larger number of runs (we could start with 10 runs).
+
+
+As I said previously, there's no doubt that the code feels easier to read and has better algorithmic complexity in all use cases. But without tests and benchmarks, and just by reading code, we cannot confirm the impact of these changes on performance. Now that you've provided us with these benchmarks, we have some tools to confirm our assumptions, and that the performance seems to be very good.
+
+
+
+;##D52 WOuld be nice to have a comparison with the master branch
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I would be interested to see a comparison of master vs this PR with the first benchmark mentioned in my previous analysis of _unrefActive's performance:
+
+
+
+
+It's definitely not a common use case, but I would expect your changes to lead to a much better performance and this would be another data point in favor of this PR.
+
+
+>>>Fishrock123, Owner
+
+
+
+
+It's interesting to see that the number of requests/second handled with the code in this PR is slightly lower for test1: 4648.92 vs 4701.17. It would be interesting to see the distribution of results over a larger number of runs (we could start with 10 runs).
+
+
+
+;##D53 The difference could have been easily caused by the setup
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D51
+;##SEN NEU
+
+I wouldn't pay much attention to that. There are a number of things that could have caused that due to my setup. Notably running wrk from my laptop hitting a remote box while running spotify etc.
+This setup still provides enough load to get perf usage numbers by %, but the actual throughput isn't something I would pay attention to for this. (Also I'm 99% certain it would be bottlenecking elsewhere.)
+
+
+
+
+I would be interested to see a comparison of master vs this PR with the first benchmark mentioned in my previous analysis of _unrefActive's performance:
+
+
+
+
+Will do.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D54 This could be applicable but we need a test
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@misterdjules I changed this back to continue as it was in the regular timers. In _unrefActive() it was return. This still seems like it could be applicable but we don't have a test for it. Could you clarify and/or help make a test if one is necessary?
+
+
+EDIT: comment in the wrong spot..
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules I changed this back to continue as it was in the regular timers. In _unrefActive() it was return. This still seems like it could be applicable but we don't have a test for it. Could you clarify and/or help make a test if one is necessary?
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D55 The return statement was needed for unrefed timers
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D54
+;##SEN NEU
+
+Do you mean the return statement in _makeTimerTimeout? It was return statement for unrefed timers because that logic is encapsulated in a function, so that return is the equivalent to the continue in the listOnTimeout loop.
+
+
+There's at least one place where we used to have a test for this behavior for timers created with setTimeout, but I removed it with #3990.
+
+
+
+;##D56 The change was made by mistake
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D55
+;##SEN NEU
+
+Basically, removing #3990 was a mistake on my side, because I assumed that it was testing that process.domain was cleared properly when an error was thrown from within a timer, when it was actually testing that a timer attached to a disposed domain wouldn't run. It's obvious to me in hindsight, I apologize for the confusion.
+
+
+
+;##D57 The test that was added should be ok though
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D56
+;##SEN NEU
+
+The test that #3990 added is good though. So what I'll do is that I'll put back the original test that #3990 removed, but with more comments to explain clearly what it tests, and move the test that #3990 added to a new file.
+
+
+Then, we can add a test equivalent to the test that #3990 removed, but for unrefed timers, in a new file too.
+
+
+>>>Fishrock123, Owner
+
+
+Ok sounds good. Do you want to do that in a separate PR? Or do you want to hand me a commit I can add to this one?
+
+
+>>>misterdjules, Contributor
+
+
+I'll do that in a separate PR but I won't be able to do that before Monday.
+
+
+>>>misterdjules, Contributor
+
+
+Done in #4256.
+
+
+>>>trevnorris, Contributor
+
+
+A difference of 4648.92 vs 4701.17 is easily within a margin of error. I'd like to see the median time after running the tests several dozen times.
+
+
+
+;##D58 It should be fine if it doesn't worsen performances
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+In the end if this even just matches the performance of the previous implementation then I'd say it's a go. Reducing that amount of code complexity is a win.
+
+
+>>>misterdjules, Contributor
+
+
+
+
+A difference of 4648.92 vs 4701.17 is easily within a margin of error. I'd like to see the median time after running the tests several dozen times.
+
+
+
+
+That's exactly what I meant, we're on the same page.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D59 It's pointess ot point at external resources if less detailed
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Maybe just remove this comment?  There's no point in linking to a less detailed external resource.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D60 Shoudn't we keep the source?
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D59
+;##SEN NEU
+
+Hmmm, it would be nice to point to where the technique originated from still, I think?
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D61 That one is most likely not the soruce
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D60
+;##SEN NEU
+
+libev is not the inventor of that technique, if that is what you mean, although it was probably Ryan's inspiration when he wrote the original timers code.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D62 Strict equality would be better
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Prefer strict equality here so the full-codegen can emit an immediate boolean check instead of a ToBoolean IC.
+
+
+>>>bnoordhuis, Owner
+
+
+Only lightly reviewed for now but I saw nothing that's obviously wrong.
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules et al.: I've gotten some new data from the test case you suggested.
+
+
+Turns out this patch is far, far more efficient, even in that case, as far as I can tell: https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007/test3
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123 Yes, it's exactly what I expected, which is why I had said:
+
+
+
+
+I would expect your changes to lead to a much better performance and this would be another data point in favor of this PR
+
+
+
+
+
+;##D63 Can we get more test1 and test2 runs?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Thanks for adding this additional benchmark to your benchmarks suite! Do you have some time to do more runs for test1 and test2 (at least 10 for each implementation, the more the better), and include the results of all runs in the results files?
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules Added some more results to https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007/test1, and new one to https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007/test2. These results are clearer, but seem to be more of the same.
+
+
+
+;##D64 I'm not sure how worthwhile it would be
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D63
+;##SEN NEU
+
+I'll do more if you really want but I'm not sure how worthwhile doing very many is.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D65 More data points would help confirm the performances
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D65
+;##SEN NEU
+
+@Fishrock123 It definitely helps to have a few more data points with the results you added. These few data points seem to indicate that performance is in the same ball park, but the more data points we can look at the more confident we can be. It shouldn't be too difficult to produce a lot more data points.
+
+
+Back when I worked on optimizing _unrefActive, I had quickly written a simple script that does as many runs as requested and outputs a summary of two pieces of information we're interested in: requests per second and CPU profiling for the _unrefActive function. You could run a similar script for long enough to have at least more than 10 data points with and without the changes in this PR, and we would be all the more confident that these changes are good.
+
+
+I'm personally reasonably confident that the changes in this PR look good (except for the question about not having a single TimerWrap instance for internal timers to which we don't really have an answer), and I won't insist more on having more data points, but providing more data would just help everyone look at more facts and rely less on their (possibly misguided) intuition.
+
+
+Not necessarily relevant to this PR, but looking at that gist, it seems that with the same parameters passed to wrk and the same code, node v0.10 handles around 8000 requests/second, and nodejs/node's master handles around 4000 requests/second.
+
+
+Of course it could be due to the benchmark setups/environments being completely different, but it seems it would be interesting to investigate. Maybe someone in the @nodejs/benchmarking has done something similar?
+
+
+>>>Fishrock123, Owner
+
+
+
+
+I had quickly written a simple script
+
+
+
+
+That's not actually good practice per se, these new results of mine have wrk and node running on separate machines. Higher correctness trade-off I suppose. I doubt my workflow can be simplified particularly much.
+
+
+
+
+I'm personally reasonably confident that the changes in this PR look good (except for the question about not having a single TimerWrap instance for internal timers to which we don't really have an answer)
+
+
+
+
+
+;##D66 It might be possible to get memory benchmarks
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I can try to get memory benchmarks if that is an issue, but in a worst-case for having lots of TimerWraps, the separated implementation still appears to be worse.
+
+
+I'll try to come up with a longer-running test that creates lots of durations and has few completed timeouts to gauge the actual impact. (Probably by replicating this in a test form to timeout requests in nextTick with minimal overhead.)
+
+
+
+
+Not necessarily relevant to this PR, but looking at that gist, it seems that with the same parameters passed to wrk and the same code, node v0.10 handles around 8000 requests/second, and nodejs/node's master handles around 4000 requests/second.
+
+
+
+
+I can't see any relevance here. This timers code much more like 0.10's code than 0.12+ were.
+
+
+>>>Fishrock123, Owner
+
+
+Some new data: https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007/test4
+
+
+
+;##D67 Discovered that using deleted on the object map can be really bad
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Turns out using delete on the object map is VERY bad in a bad-case scenario, so I'm going to just start setting it to undefined. test4/1-timers-improve show the results with that. Appears to be on-par with the single timerwrap.
+
+
+Edit: this data is flawed. I did a git thing wrong.
+
+
+>>>Fishrock123, Owner
+
+
+Ok fixed: https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007/test4
+
+
+
+;##D68 Can't understand the disparity between master and timers
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I don't really understand the tick disparity of master vs refactor-timers (+) in these. @misterdjules do you have any idea?
+
+
+
+;##D69 How would a lot of handles represents?
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@bnoordhuis how would lots of handles represent on a performance profile like this? I'm seeing a lot more syscall with this patch in a worst-case scenario.
+
+
+>>>bnoordhuis, Owner
+
+
+
+
+Turns out using delete on the object map is VERY bad in a bad-case scenario, so I'm going to just start setting it to undefined.
+
+
+
+
+
+;##D69 That change leads to a memory leak
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D67
+;##SEN NEU
+
+In case you plan on going through with that: setting the key to undefined instead of deleting it means the key's memory cannot be reclaimed.  That might be acceptable if the number of keys is bounded, otherwise it's a memory leak.
+
+
+
+
+how would lots of handles represent on a performance profile like this?
+
+
+
+
+
+;##D70 The overhead should be minimal
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D69
+;##SEN NEU
+
+You mean libuv timer handles?  The overhead should be minimal because there is no I/O involved, it only stores them in a min-heap.  It doesn't make system calls either, it uses loop->time as the current time.
+
+
+
+;##D71 Timer.now() gets called a lot
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D70
+;##SEN NEU
+
+Timer.now() on the other hand calls uv_update_time(), which makes a system call to update loop->time.  It sounds like that gets called quite a bit.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D72 Isn't it strange that uv_update_time doesn't show up?
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL nEW
+;##SEN NEU
+
+@bnoordhuis strange that uv_update_time doesn't show up in the profile though?
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D73 Something might be wrong with test4
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D72
+;##SEN NEU
+
+Perhaps something is wrong with test4's implementation in regards to running on master. Timer.now() gets called the same amount of time in either version of this code.
+
+
+>>>bnoordhuis, Owner
+
+
+
+;##D74 The process might be sleeping most of the time
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D72
+;##SEN NEU
+
+Have you checked user/sys and running/idle time for that test?  81467 90.7% syscall suggests that the process is sleeping in epoll_wait/epoll_pwait most of the time.
+
+
+>>>misterdjules, Contributor
+
+
+
+
+I had quickly written a simple script
+
+
+
+
+That's not actually good practice per se, these new results of mine have wrk and node running on separate machines. Higher correctness trade-off I suppose. I doubt my workflow can be simplified particularly much.
+
+
+
+
+
+
+My suggestion was more about trying to find a way to get more benchmark results easily. Getting 10 result sets shouldn't be a problem when running benchmarks, otherwise it becomes difficult to confirm that a single data point actually represents a larger trend.
+
+
+
+;##D75 Running wrk and tests on the same machine should nto be a problem
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+As for running wrk and the test programs on the same machine, I don't think it's a problem in the case of a comparative benchmark, as long as we're comparing apples to apples. But if you can avoid that, then that's great too.
+
+
+
+
+I'm personally reasonably confident that the changes in this PR look good (except for the question about not having a single TimerWrap instance for internal timers to which we don't really have an answer)
+
+
+
+
+I can try to get memory benchmarks if that is an issue, but in a worst-case for having lots of TimerWraps, the separated implementation still appears to be worse.
+
+
+
+
+
+
+
+;##D76 It would be interesting to determine memory usage impact
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELABB D66
+;##SEN NEU
+
+Yes, it would be interesting to determine the impact on memory usage of having lots of internal timers, for instance when running the third benchmark. Now I'm not sure that it's a realistic use case, and thus I'm not sure we want to optimize for it.
+
+
+
+;##D77 Do we know why we wanted only one internal timer?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+;##D78 Can we prove the advantage of having only one?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Basically that's the question I'm asking: do we know why we wanted to have only one internal timer? Can we write a benchmark that demonstrates the advantage of having one internal timer in at least one significant use case? If we can't, then that's fine and we can just move on.
+
+
+
+
+Not necessarily relevant to this PR, but looking at that gist, it seems that with the same parameters passed to wrk and the same code, node v0.10 handles around 8000 requests/second, and nodejs/node's master handles around 4000 requests/second.
+
+
+
+
+I can't see any relevance here. This timers code much more like 0.10's code than 0.12+ were.
+
+
+
+
+
+
+
+;##D79 We might not be comparing apples to apples
+;##ROLE ETC
+;##INV NEW
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Please note the "not necessarily relevant to this PR" bit. The point was that if the same benchmark gives half the number of requests/sec handled by node's master branch compared to 0.10.x, that's a significant regression that we should try to understand and address in a separate issue/PR, unrelated to this timer work.  Now it seems that the way these benchmarks were run is significantly different (same host for client/server in one case, different hosts in the other), so we're probably not comparing apples to apples.
+
+
+>>>Fishrock123, Owner
+
+
+I don't really know what is going on here, but here is some /time data for the last set of tests:
+
+
+(The 2-*.md files in https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007/test4)
+
+
+
+
+master @ 0b43c08
+
+
+
+
+
+
+
+
+refactor-timers ontop of 0b43c08
+
+
+
+
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D80 Do we still need memory usage testing?
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D76
+;##SEN NEU
+
+Do I still need to get memory usage for this? How do I even do that?
+
+
+>>>rvagg, Owner
+
+;##81 Using a new timer is causing problems for V8
+;##ROLE PM
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Using a new Timer() as a linkedlist in insert() is causing trouble for V8 cause it's used to using {} for them. You get a bit of perf back if you use a {}, see https://gist.github.com/rvagg/e0079429a5ebbd7d8f27
+Unfortunately I'm missing a few things here so it's leaking or missing timers, a bunch of tests bork on this and I think perf is hindered by it not being a proper impl. With your understanding of how this works you may be able to spot what I'm not seeing.
+
+
+>>>Fishrock123, Owner
+
+
+Oh looks like I forgot to post my updated results on this .-.
+
+
+>>>Fishrock123, Owner
+
+
+I got some more results for https://github.com/Fishrock123/node-perf-results/tree/master/pr-4007/test4 but I think I've forgotten which I ran with Rod's patch..
+
+
+It wasn't making a difference for me, but I switched to it anyways because it's easier to reason about and proactively optimize a bit.
+
+
+>>>jasnell, Owner
+
+
+@Fishrock123 ... while I'm not comfortable enough in my own understanding of the timers implementation yet to sign off on this, after finally having an opportunity to go through this it looks solid. Great work and great to see the detailed code comments. +1
+
+
+>>>Fishrock123, Owner
+
+
+I've updated my comment docs to what the PR now is, and have also renamed Timer to TimerWrap in an effort to resolve that naming confusion once and for all.
+
+
+@nodejs/ctc Does anyone want anything else from me here? I'd like to merge this next week.
+
+
+>>>Fishrock123, Owner
+
+
+cc @nodejs/documentation could you review my code comments? Thanks!
+
+
+>>>misterdjules, Contributor
+
+
+Is there a typo in the implementation is does?
+
+
+>>>misterdjules, Contributor
+
+
+Typo in proceess.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D80 Call would benefit from more context
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+I would suggest adding a bit more context to Call this whenever the item is active (not idle)., such as:
+
+
+
+
+active should be called whenever the item is active. For instance, in the case the item is an instance of net.Socket, active should be called whenever there's activity (I/O) happening on that socket.
+
+
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D81 Another possibility is to just move it to _unrefActive
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D80
+;##SEN NEU
+
+Although actually it might be clearer to move that comment to _unrefActive. That comment stayed at the top of active because it had been written before the implementation of unrefed timers, but it doesn't apply really to refed timers anymore.
+
+
+>>>Fishrock123, Owner
+
+
+This is the original comment, it refers to the naming of the function, and what that means. I wasn't really sure what do do with it and I thought that context was perhaps still useful, so I left it.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D82 Where is this case handled now?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D2
+;##SEN NEU
+
+Where is that case handled now?
+
+
+>>>Fishrock123, Owner
+
+
+https://github.com/Fishrock123/node/blob/421bc68/lib/timers.js#L131 ?
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D83 It might actually not handle that
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D82
+;##SEN NEU
+
+Hmmmm you may be correct that it does not handle that. I'll try to make a test to double check.
+
+
+>>>Fishrock123, Owner
+
+
+Ok, after some meticulous looking over I've determined this check is not necessary.
+
+
+
+;##D84 The check was required to remove an internal timer from the list
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This was required because previously unenroll had no way of actually removing an internal timer from the internal list, so instead we had the internals implementation check for the zeroed timeout duration. (Which I think was not very good practice, but that doesn't really matter anymore.)
+
+
+Edit: gah the timers impl is hard. It was actually never necessary at all.
+
+
+>>>misterdjules, Contributor
+
+
+It was necessary at the time of 9724047.
+
+
+
+;##D85 The check is not necessarily anymore
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D84
+;##SEN NEU
+
+The check is made unnecessary now, as you explained, because we used to queue all internal/unref timers that need to timeout. So if their callback would unenroll them, they would still be queued for timeout, and thus we needed to check their _idleTimeout property.
+
+
+
+;##D86 With this PR internal/unref timers call _onTimeout too
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D85
+;##SEN NEW
+
+Now with this PR even internal/unref timers call their _onTimeout callback as their list is processed, and so if one timer unenroll another, that other timer will be removed from the list and not processed. Thus its _onTimeout callback won't be called.
+
+
+
+;##D87 The comment is not accurate and should be removed
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D86
+;##SEN NEU
+
+So it seems that the comment at https://github.com/nodejs/node/pull/4007/files#diff-0a5d4868b2b9b17cf9e2c11f1bd1311eR130 about the listOnTimout loop timer being "too early" because of unenrolled timers is not accurate, and should be removed, because these unenrolled timers won't even be processed in this loop.
+
+
+>>>Fishrock123, Owner
+
+
+
+
+because we used to queue all internal/unref timers that need to timeout.
+
+
+
+
+doh, that would make it necessary yes
+
+
+
+
+So it seems that the comment at https://github.com/nodejs/node/pull/4007/files#diff-0a5d4868b2b9b17cf9e2c11f1bd1311eR130 about the listOnTimout loop timer being "too early" because of unenrolled timers is not accurate, and should be removed, because these unenrolled timers won't even be processed in this loop.
+
+
+
+
+Yeah I caught that earlier but forgot to remove the comment. D:
+
+
+>>>Fishrock123, Owner
+
+
+Rebased & updated. I want to land this monday.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D88 This might leak unfereferenced handles
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+One problem: I think this leaks unreferenced handles...
+
+
+
+;##D89 We don't know which list it might be in for unreroll
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D88
+;##SEN NEU
+
+For unenroll we don't really know which list it might be in. We could try both, but that results in a bunch of duplicated and hacky code.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D89 It actually doesn't leak anythign
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D88
+;##SEN NEU
+
+Ok, update: This almost certainly does not leak handles, but it is definitely hacky either way.
+
+
+
+;##D90 Unrerolling the last timer will not kill the list as long as the timer exists
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D89
+;##SEN NEU
+
+Currently, if you unenroll the last timer in an unrefed list, the timer will be removed from the list but the list will stay alive until it times out (or the process exits), and once there immediately clean up since there are no timers. see ~https://github.com/nodejs/node/pull/4007/files#diff-0a5d4868b2b9b17cf9e2c11f1bd1311eR164
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D91 Culd unrerolling an interal timer close a refed timer?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL REFR D89
+;##SEN NEU
+
+Regardless of leaking anything, it seems that unenrolling an "internal" timer could close a "refed" timer, or am I missing something?
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D92 It will close only if it's empty anyways
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D91
+;##SEN NEU
+
+No, it will not: if (list && L.isEmpty(list)) { -- it will only clean it up if it is empty anyways. (In which case it would have already been cleaned up so that will never happen anyways as far as I can tell.)
+
+
+Also, re-using only matters for refed timers as far as I can understand.
+
+
+>>>misterdjules, Contributor
+
+
+OK, I initially thought that the following sample code:
+
+
+
+
+would stop (not close, sorry for the misunderstanding) the underlying TimerWrap instance for "external" timers with a 1000ms delay and not restart it.
+
+
+
+;##D93 A problem is that the unreroll API cannot distinguish between internal and external timer
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D92
+;##SEN NEU
+
+After double checking, you're right that it doesn't: the "external" timer is still stopped when calling unenroll on the "internal" timer, but it's restarted again on the second setTimeout call. I think it shows a problem in the way the unenroll API cannot distinguish between "internal" and "external" timers.
+
+
+The problem itself was was not introduced by this PR but since this PR is about refactoring/unifying internal/external timers and making the implementation clearer/more consistent, I'm wondering when would be a good time to think about fixing that problem.
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123 Did you manage to gather results from the tests you mentioned in https://github.com/nodejs/node/pull/4007/files#r49676629?
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules I think those were the ones I mentioned in #4007 (comment)
+
+
+See https://github.com/Fishrock123/node-perf-results/blob/master/pr-4007/test4/test4.js
+
+
+>>>Fishrock123, Owner
+
+
+Lol so I just realized that no-one actually signed off on this. Does anyone on the CTC actually understand my changes enough to sign-off on this? (see the code comments?)
+
+
+@misterdjules are you willing to sign off?
+
+
+>>>benjamingr, Member
+
+
+
+;##D94 Are linked lists actually faster than arrays?
+;##ROLE PM
+;##INV F
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+I'm just wondering - are we actually sure that linked lists are faster than arrays here?
+
+
+
+;##D95 Can we use maps instead of objects?
+;##ROLE PM
+;##INV F
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN nEU
+;##D96 Is it slower to use maps instrad of objects?
+;##ROLE PM
+;##INV F
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D95
+;##SEN NEU
+
+Also, we're using objects for maps here - can we use maps? Is it slower?
+
+
+>>>Fishrock123, Owner
+
+
+
+
+I'm just wondering - are we actually sure that linked lists are faster than arrays here?
+
+
+
+
+
+;##D97 Linked list are definitely faster
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D94
+;##SEN NEW
+
+Quite sure. The linkedlist is guaranteed to have a constant-time removal from any position in the list. The linkedlist also forgoes potential issues with very large arrays that @bnoordhuis lined out somewhere previously.
+
+
+
+
+Also, we're using objects for maps here - can we use maps? Is it slower?
+
+
+
+
+
+;##D98 Maps are faster
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D96
+;##SEN ENW
+;##D99 We will investigate map next PR
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D95
+;##SEN NEU
+
+Object maps have a faster access time, which is the common case. Maps do better if there are lots of deletions. The plan is to investigate this in a PR after this.
+
+
+>>>benjamingr, Member
+
+
+
+
+Quite sure. The linkedlist is guaranteed to have a constant-time removal from any position in the list. The linkedlist also forgoes potential issues with very large arrays that @bnoordhuis lined out somewhere previously.
+
+
+
+
+
+;##D100 Remove would be dominated by cache
+;##ROLE PM
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL REFR D97
+;##SEN NEU
+
+Well, I'd assume removal would be be dominated by cache locality and not traversal - there are dozens of articles about it like https://www.youtube.com/watch?v=YQs6IC-vgmo , http://www.codeproject.com/Articles/340797/Number-crunching-Why-you-should-never-ever-EVER-us and http://highscalability.com/blog/2013/5/22/strategy-stop-using-linked-lists.html . I can find more if you'd like.
+
+
+I'm not sure if this is one of those relevant cases - but I think it should be worth exploring (not necessarily on this PR).
+
+
+
+
+Object maps have a faster access time, which is the common case. Maps do better if there are lots of deletions. The plan is to investigate this in a PR after this.
+
+
+
+
+Great.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D101 Array end up adding more complexity though
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D100
+;##SEN NEU
+
+Arrays also mean you need to know which array it is from when unenrolling. That mean's we are going to have to do a check for both refed and unrefed lists. Also, you're going to have to do some sort of splicing. Not so efficient.
+
+
+It may seem reasonable on the surface but knowing more about the internals I do not think that is a good use of my time. You are welcome to investigate it though. :)
+
+
+>>>chrisdickinson, Contributor
+
+
+Signing up to review this. I've got a pretty decent understanding of how timers worked before and have been following this PR.
+
+
+
+
+On Feb 22, 2016, at 7:56 AM, Jeremiah Senkpiel notifications@github.com wrote:
+
+
+Lol so I just realized that no-one actually signed off on this. Does anyone on the CTC actually understand my changes enough to sign-off on this? (see the code comments?)
+
+
+@misterdjules are you willing to sign off?
+
+
+—
+Reply to this email directly or view it on GitHub.
+
+
+
+
+>>>bnoordhuis, Owner
+
+
+
+
+The linkedlist is guaranteed to have a constant-time removal from any position in the list.
+
+
+
+
+
+;##D102 Linkedlist are worst in some cases
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D97
+;##SEN NEU
+
+In theory, yes, but it depends on the shapes (the internal representation) of the objects in the linked list.  Property lookups can devolve to O(log n), possibly even O(n) in pathological cases, where n is the total number of properties in the object.
+
+
+Not that arrays necessarily perform better, they have similar issues.  In case of doubt: benchmark! :-)
+
+
+>>>misterdjules, Contributor
+
+
+I would phrase it differently.
+
+
+
+
+
+;##D103 The comment could be rephreased in this way
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM ENU
+;##REL ELAB D2
+;##SEN NEU
+
+The reason why the timers implementation need to perform well is that it's used internally to handle any http request/response or any TCP I/O, so it's always in the execution path for node programs that use at least one of these forms of I/O, and users can't opt out of that.
+
+
+
+;##D104 or in this way
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM ENU
+;##REL ELAB D2
+;##SEN NEU
+
+Because it needs to be performant, and because there's potentially a very large number of timers involved in a node program at any given time, their implementation needs to be able to handle a large number of them in a way that performs well.
+
+
+
+
+If 1) wasn't true, it would still be nice to have timers perform well when there's a lot of them, but it wouldn't be as critical.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D105 Saying "most js code" is vague
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+"most JavaScript code" is a bit vague. The linked list implementation in lib/internal/linkedlist.js is actually quite similar to a lot of textbook linked lists implementations, with a few differences that can make it confusing.
+
+
+
+;##D106 It could be rephrased this way
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D105
+;##SEN NEU
+
+I would suggest removing the "to most JavaScript code" part, and maybe focus on making the lib/internal/linkedlist.js implementation easier to understand next (not necessarily as part of this PR). This shouldn't be too risky since it seems lib/timers.js is the only user of that (now internal) module.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D107 We can't since linkedlist will be exposed
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D106
+;##SEN NEU
+
+Unfortunately, we still expose linkedlist, so I don't think that is possible.
+
+
+
+;##D108 We could clarify that linkedlist is just a group of helpers
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D107
+;##SEN NEU
+
+I guess I could just clarify that the linkedlist impl is just helpers which operate on an object, rather than  a class itself.
+
+
+>>>misterdjules, Contributor
+
+
+
+
+Unfortunately, we still expose linkedlist, so I don't think that is possible.
+
+
+
+
+Ah right, I had forgotten that there's still a public API for that, thanks!
+
+
+
+;##D109 "most js code" means different things to people, so it can make it hard to understand
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D105
+;##SEN NEU
+
+What I meant was "most JavaScript code" means different things to different people, so it doesn't necessarily help making the code easier to understand.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D110 This comment is also vague
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+I find this statement to be a bit vague too. Maybe something like:
+
+
+
+;##D111 It could be rephreased in this way
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D110
+;##SEN NEU
+
+"In order to be as performant as possible, data structures are designed so that they are optimized to handle the following use cases as efficiently as possible:
+
+
+
+
+adding a new timer.
+
+
+removing an existing timer.
+
+
+handling a timer timing out.
+
+
+
+
+Whenever possible, the implementation tries to make the complexity of these operations sub-linear."
+
+
+would be a bit more specific?
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D112 Would an ASCII-art diagram help?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Would an ASCII-art diagram help here?
+
+
+>>>Fishrock123, Owner
+
+
+Does https://github.com/nodejs/node/pull/4007/files#diff-0a5d4868b2b9b17cf9e2c11f1bd1311eR93 help?
+
+
+I'm not very good at making ASCII art though.
+
+
+>>>misterdjules, Contributor
+
+
+
+
+Does https://github.com/nodejs/node/pull/4007/files#diff-0a5d4868b2b9b17cf9e2c11f1bd1311eR93 help?
+
+
+
+
+
+;##D113 It cann help, but it's too complex to connect the dots
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+That part of the code is clear, but if we want to have some kind of introduction to the timers module's data structures like this block of comments, then the comment you linked to is just too far below for someone to connect the dots.
+
+
+Maybe just describing the data structures in JavaScript would help clarify the prose?
+
+
+>>>Fishrock123, Owner
+
+
+Updated with an ASCII pseudo-code thing
+
+
+>>>misterdjules, Contributor
+
+
+
+
+the TimerWrap's inherently faster libuv binding
+
+
+
+
+
+;##D113 This statement is vague and uneccessary
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+;##D114 What is faster?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D113
+;##SEN NEU
+;##D115 Does it matter what's faster?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL REFR D114
+;##SEN NEU
+
+This seems a bit vague too, and maybe unnecessary to understand the implementation of this module. What is inherently faster more specifically, and does it really matter here?
+
+
+>>>Fishrock123, Owner
+
+
+Does "I don't know" count?
+
+
+
+;##D114 It's not clear what is faster
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D114
+;##SEN NEU
+
+I'm actually not really sure other than basically everything we do does not appear to be influenced by how libuv does it's C timers architecture.
+
+
+
+;##D115 If every timer has its own handler, it's way less efficient
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D114
+;##SEN NEU
+
+... That being said, Trevor recently tried to make each timer have it's own handle (i.e. it's own libuv timer), and reported that it was considerably less efficient.
+
+
+
+
+
+
+;##D116 It refers to libuv timers
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D114
+;##SEN NEU
+
+As I worded it, this refers to the fact that libuv timers are in C and simply appear to run faster than any JS timers thing.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D117 Libuv uses a hepa implementation
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D114
+;##SEN NEU
+;##D118 Having that kind of structure ontop seems ideal
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D117
+;##SEN NEU
+
+Did some research, libuv uses a heap implementation, i.e. O(log n). I can't comment on it too much since C is very foreign to me, but having a structure like we have ontop of it seems ideal.
+
+
+
+;##D119 Having that strucutre ends up being more efficient
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D118
+;##SEN NEU
+
+Our implementation works out to being like a timer wheel, but I'm fairly certain it ends up being more efficient having a heap underneath than an actual timer wheel. (i.e. does not use an absurd amount of memory.) It is quite similar to stacked timer wheels.
+
+
+Will update.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D120 The point is that metnioning faster doesn't make sense here
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D113
+;##SEN
+
+My point was more that to me mentioning "inherently faster" doesn't necessarily make sense here because we're comparing apples to oranges, and doesn't seem to make the lib/timers.js implementation easier to understand.
+
+
+>>>misterdjules, Contributor
+
+
+Nitpicking: in general comments are written above the code that they describe. Writing them after the code they mention can be confusing as it could suggest that they used to refer to code that has been deleted.
+
+
+>>>misterdjules, Contributor
+
+
+I'm not sure I understand what:
+
+
+
+
+Using existing objects as timers slightly reduces object overhead.
+
+
+
+
+
+;##D121 What does this means?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+means. Do you mind giving more details?
+
+
+>>>Fishrock123, Owner
+
+
+
+
+
+vs
+
+
+
+
+
+
+;##D122 Using existings objects as a timer
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D121
+;##SEN NEU
+
+i.e. re-use an existing object as a timer, like core does.
+
+
+>>>misterdjules, Contributor
+
+
+
+;##D123 It should be rephraed
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D122
+;##SEN NEU
+
+Ah OK, it wasn't clear to me from the comments, but it might be clear for others. I would suggest rephrasing that as follows:
+
+
+
+
+
+;##D124 It could be rephrased like this
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D123
+;##SEN NEU
+
+Sets additional timer-specific properties on the object "item" itself rather than on a separate sub-object to avoid the overhead of an extra level of property access.
+
+
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D125 This way seems to be less clear
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL REFR D124
+;##SEN NEU
+
+I'm not sure it's about property access (but rather the memory overhead of another layer of object), and I think that is probably less clear overall.
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123 I did another review pass, once again, thank you very much for doing this.
+
+
+I have another general comment, but it's not necessarily something we need to do in this PR, maybe something to think about for a follow-up PR.
+
+
+
+;##D126 The use of "refd/uunrefd" is confusing because we use it for two things
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The implementation still uses the name "refd" (or "refed") both for internal timers and for user created timers on which unref() was called. I find this confusing, as in the code "unrefed" (or "unrefd") sometimes means "an internal timer", and sometimes "a user facing timer on which unref() was called". I would suggest not using the term "unref" to name "internal" timers, and instead consider the fact that we call unref() on these timers as an implementation detail.
+
+
+
+;##D127 The name internaltime might fit better
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL LEAB D126
+;##SEN NEU
+
+Maybe the name "internalTimer" would fit better? That would lead to renaming _unrefActive to _internalActive, etc.
+
+
+>>>misterdjules, Contributor
+
+
+@Fishrock123
+
+
+
+
+@misterdjules I think those were the ones I mentioned in #4007 (comment)
+
+
+See https://github.com/Fishrock123/node-perf-results/blob/master/pr-4007/test4/test4.js
+
+
+
+
+
+;##D128 What is the goal of test4?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+;##D129 The results are indicating that more CPU time is spent in timers module when running it after the change?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL ELAB D128
+;##SEN NEU
+
+Would you mind commenting in test4.js what the goal/intention of this test/benchmark is? I have a bit of trouble figuring out what the intention was from the implementation. Also, the results seem to indicate that more CPU time is spent in the timers module when running this test with the changes in this PR, is that correct?
+
+
+>>>Fishrock123, Owner
+
+
+
+
+The implementation still uses the name "refd" (or "refed") both for internal timers and for user created timers on which unref() was called. I find this confusing, as in the code "unrefed" (or "unrefd") sometimes means "an internal timer", and sometimes "a user facing timer on which unref() was called". I would suggest not using the term "unref" to name "internal" timers, and instead consider the fact that we call unref() on these timers as an implementation detail.
+
+
+
+
+
+;##D130 Plan is to have unref timers use this handle in a later PR
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D126
+;##SEN NEU
+
+My plan is to make unref() timers use this handle impl in a later PR, if that helps.
+
+
+
+
+Would you mind commenting in test4.js what the goal/intention of this test/benchmark is? I have a bit of trouble figuring out what the intention was from the implementation. Also, the results seem to indicate that more CPU time is spent in the timers module when running this test with the changes in this PR, is that correct?
+
+
+
+
+
+;##D131 It's the worst case test
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D128
+;##SEN NEU
+
+Yes, that is correct. It is a test of the absolute worst case I could possibly come up with. I do not expect one would ever see this in a user application. (If it does, one of two is true: it is either some sort of crazy neural network, or is is designed very poorly.)
+
+
+The test originated off of some previous test I think, or something you asked me in the discussions above somewhere.
+
+
+>>>rvagg, Owner
+
+
+
+;##D132 Do you think it should be backported?
+;##ROLE PM
+;##INV F
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+This LGTM, I'm keen to see it merged into master and start encouraging testing of it. I'm not sure I'm keen on pushing it to v5.x, certainly not v4.x as there's too much edge-case risk here. But @Fishrock123 what was the lts-agenda tag for? Are you thinking this should be backported?
+
+
+
+;##D133 I would apply some smoke testing to this
+;##ROLE PM
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+When Jenkins is back up I'd like to see some smoke testing applied to this, pending that +1 from me for merge.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D134 It should be back-portable
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D132
+;##SEN NEU
+
+@rvagg it should be back-portable imo, I tagged it since no real discussion around lts was had for it yet.
+
+
+
+;##D135 It could change profile of applications, but it shouldn't
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D134
+;##SEN NEU
+
+I think there is far less edge-case risk here; the big thing seems to be that it will could change the profile of applications to some degree, although the net as indicated by the profiles is that it performs about the same in the common case.
+
+
+Keep in mind that this isn't anything new per-se, it is reusing what already exists for user timers.
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules was working on those things right now, I updated, can you check them again? I haven't gotten to the first one yet though,
+
+
+>>>Fishrock123, Owner
+
+
+Ok so, node won't compile with the ascii diagram. :(
+
+
+
+
+>>>bnoordhuis, Owner
+
+
+#5418 allows UTF-8 in JS source files.  Diffs looks ugly though, when git diff prints such characters as <AB><CD><EF>.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D136 There doesn't seem to be negative effects?
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+@mscdex wait, I'm returning early here but there don't see to be any negative effects?
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D137 All tests are passing and erros are shown
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D136
+;##SEN NEU
+
+All tests pass and errors show up properly in the console..
+
+
+>>>Fishrock123, Owner
+
+
+
+
+>>>mscdex, Contributor
+
+
+
+;##D138 It is expected
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D137
+;##SEN NEU
+
+That's expected because returning in the no exception case is fine, since there is no exception. If you had if (threw) return; that would be a different story.
+
+
+>>>trevnorris, Contributor
+
+
+
+;##D139 have done a perf comparison against map?
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+I forget, but have we done a perf comparison against Map? delete really bites in comparison.
+
+
+>>>Fishrock123, Owner
+
+
+
+;##D140 It is not worthwhle to do it here
+;##ROLE OP
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D139
+;##SEN NEU
+
+See #4007 (comment) -- I have a bit, but not conclusively. I don't think it is worthwhile to do here, but I plan to investigate it after.
+
+
+>>>chrisdickinson, Contributor
+
+
+
+;##D141 We could get the best by tombstoning using null and keeping count of them
+;##ROLE ETC
+;##INV T
+;##BCOM F
+;##FORM SOL
+;##REL ELAB D140
+;##SEN NEU
+
+Perhaps we could get the best of both worlds by tombstone-ing using null, keeping a count of tombstones, and copying when the number gets above a threshold to avoid reverting to slow-mode (512?) This might not be worthwhile given the numbers, though, and could be tested in a subsequent PR.
+
+
+>>>Fishrock123, Owner
+
+
+@bnoordhuis right; the diff looks a bit of a mess if your terminal is ASCII only, but the same thing would happen if you opened it it in an ASCII-only editor.
+
+
+Is this much of an issue? Otherwise I can try to get the ascii versions of the characters, if anyone has any suggestions as to how.
+
+
+Edit: Also rebased on master
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules I think I've addressed all of your comments.
+
+
+>>>chrisdickinson, Contributor
+
+
+Silly question: would turning this into a constructor function make any difference (due to slot pre-allocation)?
+
+
+>>>Fishrock123, Owner
+
+
+@chrisdickinson hmmm, I figured that would already happen? If not, that is probably a better idea.
+
+
+>>>trevnorris, Contributor
+
+
+It will add just a hair of performance (hence why I added TickObject in src/node.js).
+
+
+>>>Fishrock123, Owner
+
+
+Updated CI: https://ci.nodejs.org/job/node-test-pull-request/1753/
+
+
+@TheAlphaNerd maybe you could kick off a citgm run for this?
+
+
+>>>trevnorris, Contributor
+
+
+This is a great code simplification, so as long as all tests are passing and performance hasn't dropped then LGTM.
+
+
+>>>Fishrock123, Owner
+
+
+@misterdjules / @chrisdickinson LGTY?
+
+
+>>>Fishrock123, Owner
+
+
+Updated CI: https://ci.nodejs.org/job/node-test-pull-request/1760/
+
+
+Going to start working on squashed commits in a new branch so we can preserve the review history here.
+
+
+>>>Fishrock123, Owner
+
+
+Current commits squashed at https://github.com/Fishrock123/node/tree/refactor-timers-squash, CI is green, ready to land.
+
+
+>>>chrisdickinson, Contributor
+
+
+@Fishrock123 Yep, excellent work. LGTM!
+
+
+>>>Fishrock123, Owner
+
+
+Thanks everyone, landed in 60f8c1a and 67963c8! 🎉
+
+
+I'll address some of the other things next week in new issues/PRs
+
+
+>>>rvagg, Owner
+
+
+So good, well done on making it to landing @Fishrock123! I now crown you the new king of timers 👑, we know who to send people to when they have questions.
+
+
+>>>jasnell, Owner
+
+
+
+;##D142 This should be safe for both LTS and v5
+;##ROLE PM
+;##INV F
+;##BCOM F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+In generally I think this should actually be safe for both LTS and v5 but I'd like to see it sit for a bit to be sure there are no hidden regressions in here (there shouldn't be, I just prefer to be conservative about it).
+
+
+>>>jasnell, Owner
+
+
+oh, and yes, great job @Fishrock123 ... this is good stuff.
+
+
+>>>MylesBorins, Owner
+
+
+@Fishrock123 as v6 is getting quite close to becoming LTS I'm going to opt to keep these changes out of the v4 release line.
+
+
+This is in no ways a final decision and if you believe they should land we should discuss it in the next LTS meeting. Thanks for the hard work on these changes!
+
+
+>>>Fishrock123, Owner
+
+
+@TheAlphaNerd While this looks large, the impact on running programs is minimal but mostly positive.
+¯_(ツ)_/¯
+
+
+>>>MylesBorins, Owner
+
+
+@Fishrock123 would you be willing to open an issue on the LTS repo about the various timers changes for v4?
+
+

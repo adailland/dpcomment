@@ -1,0 +1,1921 @@
+>>>tarcieri, Contributor
+
+
+No one uses thread-safe mode because it's disabled by default
+This makes thread-safe mode configuration over convention
+
+
+If thread-safe mode were the happy path, more people would use it
+
+
+>>>joevandyk, Contributor
+
+
++1
+
+
+>>>tenderlove, Owner
+
+
+👍
+
+
+>>>tenderlove, Owner
+
+
+
+;##D1 Why was this disabled by default?
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+TBH, I don't know why we have it disabled by default. Anyone know why?
+
+
+>>>bts, Other
+
+
+👍
+
+
+>>>cfcosta, Contributor
+
+
++1
+
+
+>>>drogus, Member
+
+
+
+;##D2 When it was added more gems were not thread safe
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D1
+;##SEN NEU
+
+@tenderlove iirc it's disabled, because at the time it was added, much more gems and applications were not thread safe
+
+
+I would also turn it on by default.
+
+
+>>>collin, Contributor
+
+
+In 3.2.x I've experienced that this can bite you due to differences in the way autoload works in development/production.
+
+
+When I switched threadsafe! = true some files that looked like this:
+
+
+
+
+
+Worked in development, but the app bit the dust in production because of the implicit Whatever module. If I understand correctly, autoload is not threadsafe. Is autoload going to be around in Rails 4 development mode?
+
+
+
+;##D3 Can we identify this kind of error before deploying?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+If so, can anything be done about identifying this kind of error short of running the app in production mode before deploying? Or perhaps get the implicit module behavior working when autoloading is disabled?
+
+
+edit: still 👍
+
+
+>>>nahi, Other
+
+
+
+;##D4 Jruby does not depends on atomicity of Hash#[]= for caching
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I heard that Rails depends on atomicity of Hash#[]= for caching, but it's not true for JRuby. @tarcieri should know about it better though :)
+
+
+>>>tarcieri, Contributor
+
+
+@nahi where specifically? ActiveSupport::Cache::MemoryStore, for example, synchronizes with a Monitor:
+
+
+https://github.com/rails/rails/blob/master/activesupport/lib/active_support/cache/memory_store.rb#L118
+
+
+>>>thedarkone, Contributor
+
+
+@tarcieri here for example: resolver.rb#L35. See #6425 and other related tickets.
+
+
+>>>tarcieri, Contributor
+
+
+@thedarkone @nahi aah, I think that might work "by accident" on JRuby now but should definitely get fixed upstream. @headius would be the one to ask
+
+
+>>>tsaleh, Other
+
+
+👍 turning this on by default forces the discovery of these issues.
+
+
+>>>nahi, Other
+
+
+Yes @thedarkone, you're the person I thought of :-)
+
+
+>>>fxn, Owner
+
+
+
+;##D5 Default should be off because multi-process is dominant
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+To choose a default you need to ask yourself what is useful to most end-users. Well, the fact is that most projects are deployed using Passenger and Unicorn. Multi-process is dominant. Therefore, the default should be off in my view.
+
+
+>>>anildigital, Contributor
+
+
+👍 must go in.
+
+
+>>>stevenh512, Contributor
+
+
+
+;##D6 Is there still the issue with rake and threadsafe enabled?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is there still an issue with certain rake tasks (specifically db:seed and any other task that needs access to models) not working when threadsafe is enabled?
+
+
+>>>mcmire, Contributor
+
+
+
+;##D7 We should keep moving toward multithreading and singleprocess
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
++1 on the idea. I don't think it'll be as easy as flipping a switch, but I think it's worth it we really start thinking about this and moving in this direction as a community. There's no reason why Rails shouldn't promote a multithreaded mindset by now, it seems like the next logical step after dropping Ruby 1.8. Also, yes it's true we use Passenger and Unicorn nowadays, and they're both great and I don't expect them to go away any time soon. But if I could use just one process in exchange for having to be more conscious about thread safety, that'd be great. (Seems crazy in Ruby-land but I think we've just gotten used to the status quo.)
+
+
+>>>headius, Contributor
+
+
+So here's my question for anyone opposed...are you advocating that the default runtime mode for Rails be non-threadsafe? Really?
+
+
+Threadsafe being on by default will mean bugs get caught sooner, performances issues from eagerly (or safely) loading libraries must be addressed, and there's no surprises when someone runs threadsafe on JRuby or Rubinius. There are now more implementations with parallel threads than there are GIL implementations. Perhaps it's time for thread safety to become the norm for Rails and all of Rubydom.
+
+
+>>>stevenh512, Contributor
+
+
+@headius Just for the record (since I commented here), I'm +1 on this, I was just curious if the issue with rake tasks that need access to models still existed. In the little bit of testing I've done in the past couple days it doesn't seem to be an issue anymore. :)
+
+
+>>>headius, Contributor
+
+
+@stevenh512 I'm not familiar with that issue, so I'll let others answer...
+
+
+>>>stevenh512, Contributor
+
+
+In 3.0 (and if I recall correctly, earlier 3.1 releases) rake db:seed (or any rake task accessing models) with threadsafe enabled would raise an "undefined constant" error. Slightly annoying issue with a simple workaround, really.. but I can't reproduce it in 3.2.5 or edge Rails with threadsafe enabled.
+
+
+>>>josevalim, Member
+
+
+Everyone taking part in this discussion and said 👍, can you please turn config.threadsafe! in development today in your apps and report back how it goes?
+
+
+I agree it is important to run it in development to catch bugs but we need to do our due diligence before we merge this patch and before we ship Rails 4. I would rather handle 80% of the bugs now than after Rails 4 just comes out.
+
+
+>>>josevalim, Member
+
+
+
+;##D8 Resolver is not threadsafe, but, being it a cache, ti doesn't matter
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+About resolver, we are aware that it is not threadsafe but since it is a cache, it should not be a problem if we have concurrent read/writes (i.e. we don't need to put a lock around the whole template lookup, just around the data structure access), except that JRuby does raise an error when it happens. The solutions provided so far moves all the logic into the resolver, while I think it should be handled by the underlying data structure.
+
+
+EDIT: removed possible solutions because they were redundant
+
+
+>>>tenderlove, Owner
+
+
+
+;##D9 We should nto be relying on atomicity of hash
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D4
+;##SEN NEU
+
+@nahi if we are relying on atomicity of Hash#[]= (or any other non-threadsafe data structure), I consider it a bug.
+
+
+
+;##D10 The threadsafe! flag is misleading
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I think the threadsafe! flag is misleading.  When you have threadsafe disabled, you're saying "I'm OK with running a non-deterministic system".  Most people are not OK with running a non-deterministic system, they just don't know it will become non-deterministic (even in MRI) when threads are introduced.  We cannot restrict users or libraries from using threads, and requiring people to a) track down that some library (or some user code) is using threads, then b) flip a magic switch that makes everything OK again seems like an unacceptable default.
+
+
+
+;##D11 The flag should jsut be removed and rails keep threadsafe
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D10
+;##SEN NEU
+
+My true opinion is that Rails should just always be threadsafe and the config flag is removed.  But defaulting to threadsafe in the config settings seems like the most conservative approach for Rails 4.
+
+
+
+
+If code is slow, let's make it fast.
+
+
+If code is not threadsafe, let's make it threadsafe.
+
+
+
+
+We have to do those things anyway, let's not do it half way.
+
+
+>>>tarcieri, Contributor
+
+
+Regarding threadsafe! mode in development, you are unlikely to see thread safety bugs in development because there's no contention, however you are likely to see autoload bugs which won't happen in production because production uses eager loading. Just my 2¢.
+
+
+>>>josevalim, Member
+
+
+@tenderlove Agreed. I just wish we start doing our due diligence now, possibly backporting the latest thread safety fixes to 3-2-stable so we can try it out now. Based on my previous experience with config.threadsafe!, there were bugs related to autoload even in production mode where we eager load most of the stuff. Development mode uses another strategy for code loading, which may have even more thread-related bugs (I have no idea what will happen if two threads try to autoload the same constant at the same time via AS::Dependencies). Besides autoload I am also aware of issues in the resolver and possibly in the connection pool.
+
+
+>>>tarcieri, Contributor
+
+
+@josevalim for what it's worth, I've been somewhat interested in writing a lock-free cache that uses ConcurrentHashMap on JRuby and the Atomic gem elsewhere. I'd be shooting for something like the ActiveSupport::Cache::Store API
+
+
+>>>josevalim, Member
+
+
+
+;##D12 Using an array as key would be better
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+;##D13 Different implementations, different storing strategies. an abstraction might not be good
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL GE D12
+;##SEN NEU
+
+@tarcieri Seems reasonable. The thing is that the resolver currently uses a nested hash structure which I believe would be expensive expensive with ConcurrentHashMap. I think it would be better to use an array as a key. So basically different Ruby implementations will require different storing strategies, so an abstraction may not fit forcing us to solve the problem inside Rails itself (which is fine, imo).
+
+
+>>>josevalim, Member
+
+
+
+;##D14 Is it sure that there's no contenetion?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL REFR D8
+;##SEN NEU
+
+@tarcieri are you sure there is no contention? I believe it is common to have an application that, while rendering, does a another request to load a json or an inline image file from the rails app. They could easily try to load the same constant in such cases, c/d?
+
+
+>>>atambo, Contributor
+
+
++1, I've been running with config.threadsafe! using jruby 1.6.x running on tomcat and with mri 1.9.2 running on unicorn and both have been working fine for around a year.
+
+
+>>>tarcieri, Contributor
+
+
+@josevalim sure, you might be doing something to where there is a little contention, but your chances of actually exposing concurrency-related issues in a development environment are probably pretty slim compared to what you'll experience in a load test/smoke test or production.
+
+
+>>>josevalim, Member
+
+
+@atambo are you running with it on in which environments?
+
+
+@tarcieri yup, agreed.
+
+
+>>>atambo, Contributor
+
+
+@josevalim, production environment only.
+
+
+>>>anildigital, Contributor
+
+
+@josevalim pull request is for only production environment not for development environment :)
+
+
+>>>josevalim, Member
+
+;##D15 Why does this not apply to dev mode too?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN  NEU
+
+A-ha. Unsure why I was thinking about development mode but honestly, why
+not? This is inline with @tenderlove's reasoning.
+
+
+>>>thedarkone, Contributor
+
+
+
+;##D16 Making dev mode multithreaded is a bad idea
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D15
+;##SEN NEU
+
+Making development mode multithreaded is a very bad idea. Rails should have a global mutex in development mode and thread-safe mode with eager loading in production.
+
+
+>>>tsaleh, Other
+
+;##D17 Why do we want dev and production to diverge?
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL GEND15
+;##SEN NEU
+
+Hope I'm not being dense, but why do we want development and
+production modes to diverge?
+
+
+
+
+Making development mode multithreaded is a very bad idea. Rails should have a global mutex in development mode and thread-safe mode with eager loading in production.
+
+
+
+
+
+Reply to this email directly or view it on GitHub:
+#6685 (comment)
+
+
+
+
+>>>tarcieri, Contributor
+
+
+@tsaleh Rails uses eager loading in thread-safe production mode now, because autoload isn't (or wasn't) thread safe.
+
+
+
+;##D18 You want to lazy aoutoload and reload in dev
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D17
+;##SEN NEU
+
+In development mode you probably want lazy autoload and reloading
+
+
+>>>plentz, Contributor
+
+
++1 for removing threadsafe flag.
+
+
+Just a real life case: I'm using rails 3.2.x(and jruby) with threadsafe enabled in production for a few months and everything is running fine(after the last refactor @ connection pool from @tenderlove). Huge performance gains.
+
+
+>>>fxn, Owner
+
+
+@headius let me reply since I expressed my opinion that I prefer the flag to be off.
+
+
+First of all, I understand people that run or want to run in a threaded environment. That's awesome, but that by itself is not the criteria you use to choose a configuration default value.
+
+
+
+;##D19 We should consider practicality and how often it is used to select the right default value
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Some say "hey, I love JRuby and have been running an app with threadsafe on in production with excellent results". Fine, but that is not an enough argument for a change in a generated flag from my perspective. The measure to choose a default value for me is a balance between what makes sense in practical terms looking at the project and the community as a whole, and which is the value most people won't touch.
+
+
+I think we will all agree that multi-process is dominant today. I don't think it is a good idea to flip this for all users in Rails 4 because albeit it is fantastic to push this stuff to find bugs, in practice that means bugs in production for end-users that are running multi-process anyway.
+
+
+As a project maintainer that sounds backwards for me. If you are running in multi-process and you want to use this in production and provide feedback, then you should be the one turning the flag on.
+
+
+
+;##D20 We can't remove the flag because Rails is not thread-safe as it isi
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Lastly, about the existence of the flag, it would be awesome to be able to claim that Rails is thread-safe and remove it. Well, you need to forget about constant autoloading and some stuff that's nice in development mode and not thread-safe, so in the mid term Rails is not going to be thread-safe in all environments. Therefore, we cannot remove the flag.
+
+
+Let me stress this reply is not about threads vs processes, my answer addresses this particular pull request that wants to change a default value.
+
+
+>>>tenderlove, Owner
+
+
+
+
+I think we will all agree that multi-process is dominant today. I don't think it is a good idea to flip this for all users in Rails 4 because albeit it is fantastic to push this stuff to find bugs, in practice that means bugs in production for end-users that are running multi-process anyway.
+
+
+
+
+This change is in the generators and only impacts newly created apps.
+
+
+
+
+Lastly, about the existence of the flag, it would be awesome to be able to claim that Rails is thread-safe and remove it. Well, you need to forget about constant autoloading and some stuff that's nice in development mode and not thread-safe, so in the mid term Rails is not going to be thread-safe in all environments. Therefore, we cannot remove the flag.
+
+
+
+
+This change is only to the production configuration, not the dev configuration.
+
+
+>>>tarcieri, Contributor
+
+
+
+
+I don't think it is a good idea to flip this for all users in Rails 4 because albeit it is fantastic to push this stuff to find bugs, in practice that means bugs in production for end-users that are running multi-process anyway.
+
+
+
+
+The amazing thing about this setting is that it's a default in a generator. If you're afraid of the multithreaded boogieman, you are free to turn it off. I agree that it does bring about the minimum amount of education that if you don't want to learn about thread safety in Ruby, you will need to find this setting and disable it.
+
+
+>>>fxn, Owner
+
+
+On Tue, Jun 12, 2012 at 1:29 AM, Aaron Patterson <
+reply@reply.github.com
+
+
+
+
+wrote:
+
+
+
+
+I think we will all agree that multi-process is dominant today. I don't
+think it is a good idea to flip this for all users in Rails 4 because
+albeit it is fantastic to push this stuff to find bugs, in practice that
+means bugs in production for end-users that are running multi-process
+anyway.
+
+
+
+
+This change is in the generators and only impacts newly created apps.
+
+
+
+
+Newly created apps, the majority of which are meant to run in a
+multi-process production setup.
+
+
+
+
+
+
+Lastly, about the existence of the flag, it would be awesome to be able
+to claim that Rails is thread-safe and remove it. Well, you need to forget
+about constant autoloading and some stuff that's nice in development mode
+and not thread-safe, so in the mid term Rails is not going to be
+thread-safe in all environments. Therefore, we cannot remove the flag.
+
+
+
+
+This change is only to the production configuration, not the dev
+configuration.
+
+
+
+
+Sure, but some comments in the thread mentioned getting rid of the flag
+altogether. I was addressing those comments in that paragraph, not the
+patch itself.
+
+
+>>>tenderlove, Owner
+
+
+
+
+Newly created apps, the majority of which are meant to run in a
+multi-process production setup.
+
+
+
+
+
+;##D21 What acutal problems could be encountered by enabling the flag?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Enabling config.threadsafe! will not break a multiprocess setup.  Are we trying to encourage people to write non-threadsafe code?  I really don't understand the motivation.  I definitely wouldn't change this for existing apps, but for new ones, I don't understand the harm.  Can you enumerate actual problems a person would encounter?
+
+
+>>>nahi, Other
+
+
+autoload in CRuby 1.9.3 is NOT MT-safe. autoload in JRuby 1.6.6+ and CRuby 2.0.0dev should be MT-safe now.
+
+
+My understanding is that Rails has two customized version of auto feature loading: "customized autoload" for production mode and "on-demand file reloading" for development mode. Per "customized autoload", it might be MT-safe on 1.6.6+ and 2.0.0dev. Per "on-demand file reloading", Rails needs some solution. (ClassLoader, MVM, or something)
+
+
+@josevalim, please let me know if you find that "customized autoload" (in production) is still NOT MT-safe.
+
+
+>>>josevalim, Member
+
+
+@nahi perfect, thanks for the response.
+
+
+@nahi @tenderlove can we backport the fixes and make CRuby 1.9.3 autoload threadsafe as well? Or would it be too much work? If we can get those backported it would be awesome since we would be looking at a period of 6 months for another release (I assume).
+
+
+>>>nahi, Other
+
+
+@josevalim Related tickets: [Fix] http://bugs.ruby-lang.org/issues/921 and [Backport rejected] http://bugs.ruby-lang.org/issues/5621
+
+
+I still have a hope of backport but we need counterstatement for http://bugs.ruby-lang.org/issues/5621#note-21
+
+
+>>>josevalim, Member
+
+
+Thanks @nahi, may I ask you a couple more questions?
+
+
+In the backport discussion, Yehuda raised a scenario about parallel autoloads (where Foo and Bar depend on which other) and later parallel requires were failing. Which of those are fixed on trunk?
+
+
+
+;##D22 Will parallel autoload still pose an issue for Rails?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Also, assuming the parallel autoload is fixed, is it fixed by having an autoload lock? If so, I assume requires inside autoloaded files won't run in parallel, so even if if the parallel requires are not fixed, it should not be an issue with Rails.
+
+
+@nahi regarding your comments about the customized versions of autoload, Rails depends on two autoload mechanisms and on two loading strategies. Libraries code (and Rails code) are developed using Ruby's autoload, application code (models, controllers, etc) are loaded via AS::Dependencies. Code loaded via Ruby's autoload is not unloaded after a request, the ones loaded via AS::Dependencies are.
+
+
+In development, both are really lazy loaded (lazy strategy). In production, we eager load (eager strategy) but what we eager load depends on if config.threadsafe! was called or not. If not threadsafe, we eager load all of AS::Dependencies (models, controllers, etc) and that is it. If threadsafe, we eager load all of AS::Dependencies plus all libraries and Rails frameworks that we are aware of. The reason we do this second step is to exactly work around the fact Ruby's autoload was not thread safe.
+
+
+In other words:
+
+
+
+
+
+
+;##D23 We can't preload frameworks before autoload is thred safe
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D20
+;##SEN NEU
+
+If we want to stop preloading frameworks (which is expensive), Ruby's autoload needs to be thread safe
+
+
+
+
+
+;##D24 We need autoload to be thread safe to have threadsafe in dev
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D20
+;##SEN NEU
+
+If we want to use threadsafe in development and/or stop eager loading AS::Dependencies in production, we need to make Rails' autoload thread safe. While I believe multi-process apps could benefit from not having eager loading in production (faster boot time, load only what is need on every request), eager loading is probably a good idea for multi-threaded apps (to avoid dog-pile effect on multiple threads loading the same code at the same time)
+
+
+
+
+
+>>>josevalim, Member
+
+
+Extra note, if someone is using JRuby 1.6.6+ in production, I would like to recommend to do the following in production:
+
+
+
+
+Since JRuby's autoload is threadsafe, there is no need to preload all of Rails. You should have faster boot time and lower memory usage. If any of you do, please let me know how it goes.
+
+
+>>>plentz, Contributor
+
+
+@josevalim I am. I will try to do that. Today, I have to add the following lines to the application.rb to make my app work
+
+
+
+
+
+>>>josevalim, Member
+
+
+@plentz in theory, everything in app is already eager loaded:
+
+
+https://github.com/rails/rails/blob/master/railties/lib/rails/engine/configuration.rb#L41
+
+
+lib is not, but in theory nothing there is autoloaded (unless you set it to be autoloaded as well) and should be required whenever it needs to be used (in your app files or on initialization).
+
+
+>>>fxn, Owner
+
+
+@tenderlove I don't have any issue in mind off the top of my head, though I wonder about edge cases I don't foresee. I don't have certainty either though and I'll think about it.
+
+
+
+;##D25 This situation is similar to the conneciton pool one, where is not clear why the default value si such
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+But this is something akin to the connection pool for me: Why the heck is Rails generating a connection pool of size 5 as a default when the vast majority of applications do not even need a connection pool? Why not a connection of pool of size 1? Why not have the connection pool as an opt-in?
+
+
+I don't care it is ultra-cheap, only one connection is used in multi-process anyway, and all those arguments. It is conceptual, a user with a multi-process deployment in my view should not have thread-related configuration options to deal with. That's my conceptual mismatch with all this. And that is why I prefer off as a default that matches the majority of apps out there.
+
+
+That being said, I don't feel strong about this. I have expressed my point of view to contribute to the discussion. If there was consensus in core that on is better that'd be OK for me.
+
+
+>>>josevalim, Member
+
+
+
+;##D29 Deployment being multi-process does not indicate a muti-threaded app
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@fxn the deployment being multi-process does not mean the application is not multi-threaded. With sidekiq and celluloid becoming more popular and even with Rails 4 threaded queue, this will become more and more common. That said, I am fine with having a connection pool and having a default size > 1 (the actual value should go in another discussion).
+
+
+
+;##D30 Rails feature should be on by default, sot aht the ecosystem can assume those
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The way I see the connection pool (and concurrency in general) is as any other Rails feature, it is better to be on by default, so the ecosystem can build software based on this assumption. The cost and conceptual arguments you present are the same as any other Rails feature (for example, one could argue to turn off many features by default to reduce eventual conceptual and performance cost).
+
+
+>>>fxn, Owner
+
+
+On Tue, Jun 12, 2012 at 4:04 PM, José Valim <
+reply@reply.github.com
+
+
+
+
+wrote:
+
+
+
+
+@fxn the deployment being multi-process does not mean the application is
+
+
+
+
+not multi-threaded.
+
+
+
+
+Yes yes.
+
+
+>>>deanpcmad, Other
+
+
+
+;##D31 What would be the advatanges of threadsafe
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+What would be the advantages of using threadsafe!?
+
+
+>>>tarcieri, Contributor
+
+
+
+;##D32 It would allow to process thing while waiting ofr requests
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@deanperry when your Rails app is talking to a database or another external service, it can continue processing requests instead of sitting around doing nothing while waiting for the database to respond
+
+
+>>>deanpcmad, Other
+
+
+@tarcieri ah I see, thanks. Makes sense!
+
+
+>>>headius, Contributor
+
+
+I am actually curious about how threadsafe mode might affect MRI deployments, actually. In theory, you could improve throughput of a single MRI instance by having threading-aware C extensions and funneling additional requests through it, so blocking calls don't just put that instance to sleep.
+
+
+Threadsafe mode should absolutely, positively be the future for Rails, and not just because of JRuby/Rubinius.
+
+
+>>>tarcieri, Contributor
+
+
+@headius my experience with single-threaded MRIs has been people are afraid to have long-running requests in Rails in general, because long-running requests block an instance that could otherwise be servicing traffic.
+
+
+There have been many times throughout the history of my usage of Rails where I would like to do things like make requests to APIs that might take a long time to return a response (or hit many APIs at once), or dynamically generate a large response that may be quick to generate but takes a long time to stream to a client (X-Sendfile, anyone?). These are examples of primarily I/O bound activities that would prevent a Rails application from continuing to process requests.
+
+
+As soon as you run into any of these sorts of use cases threads begin to look extremely attractive, because without them you have an entire instance sitting around doing nothing while it's waiting for I/O. You have 50MB+ (on a good day) dedicated to servicing a single concurrent request, and all that memory is wasted while that process blocks waiting on I/O. These same use cases are what have driven people to try to run Rails on top of EventMachine with em-synchrony.
+
+
+Whenever people run into these sorts of use cases now, I think the typical solution is to stick the requested action into a queue and let the client poll for the result. This adds a lot of incidental complexity to both the implementation and the API. That's not to say that background job queues aren't useful and I'm really excited to see the work going into Rails 4 around a standard queue API, but for a lot of use cases, threads would allow people to just write synchronous APIs for these use cases and make everyone's lives easier.
+
+
+The problem is that thread safe mode is off by default, so people are afraid to turn it on, and because of that fear they engineer around the limitations of a single-threaded model.
+
+
+>>>fxn, Owner
+
+
+I would like to follow up here the excellent post by @tenderlove to avoid forking the thread. (See http://tenderlovemaking.com/2012/06/18/removing-config-threadsafe.html.)
+
+
+As you know, the post analyses what the flag implies and its impact in several runtime environments. It concludes that in multi-process Rack::Lock is superfluous. The corollary of the post is that the threadsafe flag does little harm to multi-process apps.
+
+
+
+;##D33 Having the flag on by default would lead people in thinking that their code should be thread-safe
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Alright, but that is not the end of the story. We need to put ourselves on the shoes of the end-user. One of our majority of users that plan to run Unicorn or Passenger goes and sees the threadsafe flag enabled. Not only he wonders about the implications on booting the application, the problem is that he wonders whether that flag means his code should be thread-safe.
+
+
+
+
+This is set, and the name is clear and it has even an exclamation mark, therefore Rails could be assuming somehow my application is thread-safe.
+
+
+And of course, if your target is multi-process you do not write and should not bother to write thread-safe code. So our beloved user goes and turns the flag to false to be totally sure there's no misunderstanding.
+
+
+
+;##D34 If most people have to change the default value, the value is wrong
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D33
+;##SEN NEU
+
+As a consequence, statistically speaking, the vast majority of our users are going to need to comment out that line. And in my book that means the default value for the flag is wrong.
+
+
+Let me repeat I express my opinion about which should be the generated default value. I am not talking about how should people deploy their apps.
+
+
+If the day arrives where JRuby and Puma are the dominant production platforms, then I'll vote for having the flag enabled by default.
+
+
+Finally, the post then speculates about removing the config option altogether. But as already noted here that's not going to be possible as long as we configure stuff per environment, since AS constant autoloading (dependencies) is not thread-safe because it is based on const_missing. Well, I am not 100% sure, but I don't think Ruby stops the world until const_missing returns (please someone correct that if I am wrong). And you definitely want dependencies in development mode. EDIT: Yes, I have confirmed const_missing may be called by several threads on the same constant.
+
+
+>>>fxn, Owner
+
+
+
+;##D35 documentation instead of this flag would make clear that there's no asusmtion about their code
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D34
+;##SEN NEU
+
+Also, it could be possible that documentation, a code comment, or renaming the flag to be more explicit about which thread-safety we are talking about could make clear to the user that the flag by itself makes no assumption about the application.
+
+
+
+;##D36 Why do we insert Rack::Lock?
+;##ROLE PM
+;##INV F
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Let me add I don't understand why we insert Rack::Lock, are there use cases where people want to deploy a non-thread-safe app in a threaded server? Seems a weird combination to me (and those users could insert the middleware themselves in any case). EDIT: WEBrick probably justifies that, since it is widely used for development.
+
+
+>>>tenderlove, Owner
+
+
+@fxn totally agree.
+
+
+We definitely need the preloading stuff to be per-environment, and I think those should stay as is (but we change to default to preloading in production).  I think the main point of contention is whether or not we insert Rack::Lock in the middleware.
+
+
+
+
+Let me add I don't understand why we insert Rack::Lock, are there use cases where people want to deploy a non-thread-safe app in a threaded server? Seems a weird combination to me (and those users could insert the middleware themselves in any case).
+
+
+
+
+I have exactly the same doubts.  I'll need to check out the webrick situation though! :-)
+
+
+>>>zires, Contributor
+
+
+@fxn I agree with you.
+
+
+>>>headius, Contributor
+
+
+Let's look at this sentence more closely:
+
+
+"And of course, if your target is multi-process you do not write and should not bother to write thread-safe code."
+
+
+I would argue you're saying "if your target is multi-process you should not bother to write safe code."
+
+
+
+;##D37 Do we want Rails to remain unsafe by default?
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The potential here is that nearly all libraries and all apps might eventually be run in a threaded environment. By discouraging writing thread-safe code (and perhaps even encouraging thread-safety ignorance as here) we're just pushing those bugs to someone in the future. Is that what we want to do? Do we want Rails' legacy to remain "unsafe by default"?
+
+
+A large part of libraries out there spun off someone's project and grew from there. Encouraging people to ignore thread safety means more new libraries will have threading issues out of the box. That's what we want?
+
+
+"As a consequence, statistically speaking, the vast majority of our users are going to need to comment out that line. And in my book that means the default value for the flag is wrong."
+
+
+So Rails isn't opinionated anymore? :)
+
+
+I think Aaron's post pointed out that there's only one class of users that will ever have to turn threadsafe off: those who are writing code to target a threaded server and that don't want to write threadsafe code. Is that the horse we want to bet Rails' future on?
+
+
+It's not hard to write thread-safe code in a Rails application. Simple rules will save any app:
+
+
+
+
+Don't share mutable state
+
+
+If you must share mutable state, mutex around all accesses to it
+
+
+
+
+
+;##D38 Theading is part of Ruby now
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL GEN D37
+;##SEN NEU
+
+Threading is a reality in the Ruby world (always has been) and now with JRuby parallel threading is seeing wide use. It's time for Rails to be threadsafe by default and time for us to start encouraging and helping users write threadsafe applications and libraries.
+
+
+>>>tarcieri, Contributor
+
+
+@fxn "And of course, if your target is multi-process you do not write and should not bother to write thread-safe code."
+
+
+This is not true. I listed several reasons why you would want to use threads in tandem with multiple processes in this post: #6685 (comment)
+
+
+Since MRI/YARV has a GIL, if you are using it on a multiprocessor box, even with threads, you are going to want to run several processes to utilize all available CPU cores, as the GIL precludes multicore operation.
+
+
+Multiprocess is orthogonal to multithreaded. In many cases it makes sense to use both.
+
+
+>>>fxn, Owner
+
+
+
+;##D39 Rails and plugins should be trhead-safe, not apps
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@headius not being thread-safe of course does not mean not being safe. It all depends on your environment. I am talking about applications. Rails should be thread-safe, and plugins should be thread-safe. Applications? Let's leave that choice to their authors.
+
+
+@tarcieri of course, we are talking natural language and in natural language you hardly can use a forall quantifier. When I say "you do not write" I mean "the majority of people do not write". At least in my experience. I don't mean "absolutely nobody does not write", I mean "generally speaking", "most people", the people I have in mind for choosing a default value.
+
+
+Nevertheless, I am sure we guys have a lot of common goals. Let's focus in what I believe we have in common. I think everyone in this thread (including me) would agree on the following:
+
+
+
+
+
+
+;##D40 We'd like to have Rails thread-safe by defaut
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL GEN D39
+;##SEN NEU
+
+We'd like that thread-safety was a first-class citizen in Ruby on Rails. We want to get rid of the "stigma" of having to enable this by hand. To be clear, that does not mean we send the message that people should deploy multi-threaded applications, that's a different discussion, we send the message multi-thread and multi-process as far as framework support etc. are on-par.
+
+
+
+
+
+;##D41 Changing this flag should not impact anything
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+We all agree that enabling this flag has no impact that we can foresee in general in the typical multi-process application that runs under Passenger and Unicorn. In fact, most preloading has already being done under REE to play nice with copy & write. We are basically changing the way things boot, and that could just be a fact "Rails boots this way by default in production mode".
+
+
+
+
+
+;##D42 But it would push people toward thread-safe code
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D41
+;##SEN NEU
+
+A movement like this would send the message that plugin authors are expected to write thread-safe code, we all like that idea.
+
+
+
+
+
+
+;##D43 Another name would be better to not confuse people
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOl
+;##REL REFR D41
+;##SEN NEU
+
+My only concern is: I'd like to do this switch provided it is crystal clear that people in 2) have nothing to worry about. I think the current flag name is unclear. And I don't like to resort to documentation for this. The solution should be elegant. I think I'd like perhaps another name or something that makes crystal clear that what you are configuring is a different boot. We could even flip the meaning so that we do not even generate a flag at all in production.rb. We boot this way, vinegar to the alternative.
+
+
+I don't have the solution, but do you know what I mean?
+
+
+>>>tarcieri, Contributor
+
+
++1 on getting rid of Rack::Lock entirely and always using eager loading in production
+
+
+>>>headius, Contributor
+
+
+Yes, +1 eager loading always. Production is production...laziness is a bad pattern for a reliable environment.
+
+
+@fxn I think we're on the same page for the most part. You don't want concurrency by default, and I do. However...it seems to me that the question of whether requests are routed concurrently or in serial is not a Rails issue. Rails should be threadsafe. Plugins written for Rails should be threadsafe. Applications should ideally be threadsafe, but the decision to route requests concurrently is not a Rails issue.
+
+
+For example...
+
+
+JRuby has supported concurrent requests on the same Rails application for years...since 2.2 introduced "threadsafe" mode. Since that time, many (most?) people have opted to continue running Rails with multiple instances even on JRuby (by having multiple JRuby instances in the same process). That is not a Rails issue; that is a deployment issue...a server issue. Perhaps we're fighting the wrong battle here?
+
+
+Let's rephrase this a bit...
+
+
+Should Rails be threadsafe by default? Seems like we all agree yes.
+
+
+Should plugins written for Rails be threadsafe by default? We agree yes.
+
+
+Should applications written with Rails be threadsafe? Yes, but it's possible for users to deploy in ways that allow some leniency in thread safety, such as multiple JRuby instances or multiple processes.
+
+
+Should libraries used by a Rails application be threadsafe? The answer is yes, but we don't control all libraries...so I agree there needs to be a way to run requests in serial rather than concurrently, but this is again a server/deployment issue.
+
+
+I take some hints from JVM frameworks, as you might expect, and this all hearkens back to Servlets. Early on, you could extend SingleThreadedServlet (or something) to guarantee a given instance of a servlet would never receive concurrent requests. This was useful in its time, before JVM threading was well understood. I used it a few times myself to keep per-request state on the servlet object.
+
+
+Over time, though, the servlet API improved to provide better per-request state outside of the session. The need for a single-threaded servlet model became unnecessary, and given the increasing moves toward concurrency it was deprecated (and maybe dropped) from later servlet API revisions.
+
+
+I see Rails as going through the growing pains many frameworks do as they move to a concurrent world. My opinion is settling in like this:
+
+
+
+
+
+;##D44 We should not have a difference in production mode bewtween threadsafe and not safe
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+There should be no difference in production mode between threadsafe mode and non-threadsafe mode. Everything "threadsafe" does now should be done by default.
+
+
+
+;##D45 User will have to worry about concurrency only when they move to a concurrent server
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D44
+;##SEN NEU
+
+Users concerned about their applications receiving concurrent requests should look to the server or the deployment model to guarantee request independence. That means most of them will get it by default now, since no servers other than Puma route requests concurrently for MRI. That also means that you only have to worry about concurrency when you decide to move your app to a concurrent server.
+
+
+
+
+So Rails should give up on the idea that there even exists a non-threadsafe mode for framework, libraries, or apps, and push any concerns about concurrent request routing to the request routers...the servers and deployment frameworks people are using today.
+
+
+>>>fxn, Owner
+
+
+
+;##D46 Would boot_strategy be a better name?
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+;##D47 :lazy and :eager are two possible values
+;##ROLE PM
+;##INV T
+;##BCOM T
+;##FORM ENU
+;##REL ELAB D46
+;##SEN NEU
+
+Let me propose an idea, just to try to give a new perspective to this. What if we rename this to boot_strategy? Possible values could be, say, :lazy, or :eager. With the natural defaults. The documentation of each one in particular would say something about thread-safety, as anything else should.
+
+
+
+;##D48 We should also consider backward compability
+;##ROLE
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELABD 46
+;##SEN NEU
+
+Of course taking backwards compatibility into account etc. I mean, modulus details, what if we move the focus to how the application boots, and include thread-safety documentation as a normal thing? Sounds bad? Sounds good?
+
+
+>>>rosenfeld, Contributor
+
+
+Here is my opinion on whether Rails should enable threadsafe! by default. A lot of new Rails applications will look for cheap hosting, usually a VPS. And they usually price their plans by amount of available RAM.
+
+
+A threaded server will take much less RAM to serve 10 concurrent requests than any multi-process server, like Unicorn or Passenger.
+
+
+
+;##D49 Having the flag enabled by default would push new users toward cheap hostings.
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+So it would be way cheaper to deploy default new Rails applications in low-cost VPS. It is likely that newcomers to Rails are the ones that we should be most concerned about when dealing with default values as experienced Rails developers already know about the implications of each of those settings for each environment.
+
+
+Allowing newcomers to Rails to deploy their apps in a cheaper VPS would be a great feature for Rails 4.
+
+
+>>>kenn, Contributor
+
+
+
+;##D50 The advantage of the threaded servers would diminish with MRI2.0
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL REFR D49
+;##SEN NEU
+
+@rosenfeld agree with most of your points, but when we have MRI 2.0 with CoW-friendly GC, forking multi processes would cost less and less in terms of memory usage.
+
+
+
+;##D51 The gaining for threaded code would be minimal eventually
+;##ROLE F
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D50
+;##SEN NEU
+
+Ideally, all pages that are eager loaded before forking should be shared between N+1 processes, down to the point where no difference in memory usage observed than threaded environments. Eventually the gain from writing threaded codes for request concurrency would be marginal.
+
+
+Which would we expect to be accomplished earlier, all libraries in the wild become threadsafe or MRI 2.0's better GC works out of the box? I don't know, so I'd bet evenly both, +1 to threadsafe by default for Rails.
+
+
+>>>rosenfeld, Contributor
+
+
+
+;##D52 Some people might want to store some in memory
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D50
+;##SEN NEU
+
+@kenn what about features like identity maps? Suppose you want to keep some of the records in-memory instead of using a distributed store like memcache. This way, even with a CoW-friendly GC your processes would use more memory than a threaded approach.
+
+
+>>>rosenfeld, Contributor
+
+
+I'm not saying that using a shared key-value store is a bad idea (actually it is a good one in most cases), but for beginners that means extra burden in the initial phase of some project...
+
+
+>>>kenn, Contributor
+
+
+@rosenfeld good point, idmap'd shared objects (or other local caching) would be a big plus for threaded envs. We need more imagination what would be possible in the new world. :)
+
+
+>>>agibralter, Contributor
+
+
+Anyone have any thoughts on what @collin said? I noticed that module loading problem too:
+
+
+
+
+
+and the implicit module.
+
+
+>>>tarcieri, Contributor
+
+
+@kenn eager loading would benefit users of CoW GC as well, because it ensures the entire application is loaded prior to forking
+
+
+>>>rosenfeld, Contributor
+
+
+@agibralter I guess a sample application demonstrating the issue would help us to figure out what you're talking about...
+
+
+>>>tarcieri, Contributor
+
+
+
+;##D53 Require_dependency can be used to ensure loading first
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEw
+;##SEN NEu
+
+@agibralter @collin you should use require_dependency to ensure that the file which contains Whatever is loaded first
+
+
+>>>agibralter, Contributor
+
+
+@tarcieri right now, it's possible to say, have controllers/admin/foos_controller.rb define class Admin::FoosController without ever explicitly defining a module Admin.
+
+
+>>>rosenfeld, Contributor
+
+
+Or, if I understood correctly, instead of "class Whatever::Something" you could use:
+
+
+
+
+
+>>>rosenfeld, Contributor
+
+
+But I agree that Rails could define the modules first when loading the framework before requiring the files...
+
+
+>>>agibralter, Contributor
+
+
+When you do rails g controller admin/foos it puts
+
+
+
+
+
+in app/controllers/admin/foos_controller.rb
+
+
+>>>rosenfeld, Contributor
+
+
+Are you stating that this works when threadsafe! is disabled but doesn't work if it is enabled?
+
+
+>>>agibralter, Contributor
+
+
+Ah sorry -- it used to be the case that threadsafe caused trouble for implicit modules. Seems to work now.
+
+
+>>>kenn, Contributor
+
+
+
+;##D54 Pushing threadsafe is not beneficial, because by the time CoW Gc is avilable thread-safe code will be not so benenficial
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@tarcieri that's exactly my point, eager loading would benefit users of CoW GC, and it would cancel out the benefit of using multi-threaded envs for less memory consumption. Even better, forking multi-process have true concurrency utilizing multi-cores on MRIs with GIL. My point is that, by the time truly CoW-friendly GC is available on MRI, writing thread-safe code - again, I'd strees that's for request concurrency - would be less beneficial, just adding code complexity.
+
+
+But practically speaking, I wouldn't hope too much on CoW-friendly GC to work 100% as advertised, so I'd imagine myself using Puma for some projects, Unicorn for the other, and of course Celluloid for some. :)
+
+
+>>>tarcieri, Contributor
+
+
+
+
+eager loading would benefit users of CoW GC, and it would cancel out the benefit of using multi-threaded envs for less memory consumption [...] writing thread-safe code - again, I'd strees that's for request concurrency - would be less beneficial, just adding code complexity.
+
+
+
+
+Please see my comments about how a lack of thread safety increases code complexity:
+
+
+#6685 (comment)
+
+
+
+;##D55 CoW is not able to replace thread-safe code completely
+;##ROLE OP
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D54N
+;##SEN NEU
+
+I am speaking from the experience of how I have seen systems which were already CoW-friendly (i.e. REE w\ eager loading) handle concurrency. There is still the issue that requests that block for long periods of time can easily take down an entire site. If you receive N of these requests, your site will be completely blocked and unable to handle any traffic.
+
+
+As a result, people attempt to keep render times short by placing long running requests into background job queues and polling for the result if desired. This adds a ton of incidental complexity when synchronous requests would otherwise suffice.
+
+
+In the days before Rails was thread safe, I used to use a Merb application to handle long-running requests like this (e.g. ones that proxy to a slow external service or make calls to several services) Threads provide a lightweight way for a single VM to service several requests. CoW helps, but a VM is still substantially heavier than a pthread.
+
+
+>>>rosenfeld, Contributor
+
+
+
+;##D56 A similar problem would happen due to thread pool limit
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL REFR D55
+;##SEN NEU
+
+@tarcieri I don't get your argument. A similar problem would happen in a theaded environment as you'll also have a thread pool limit. The difference is that the threaded approach will consume less memory.
+
+
+>>>kenn, Contributor
+
+
+@tarcieri If a CoW-friendly env doesn't offer enough concurrency, so doesn't a multi-thread env. They are in the same order of magnitude of concurrency, like 100s per server at best. Definitely not in the order of 10,000s per server that evented model would offer.
+
+
+I think we should separate out the background job sort of discussion here, that's orthogonal IMO.
+
+
+>>>tarcieri, Contributor
+
+
+@rosenfeld It's not just about memory usage. By using fewer processes with fewer heaps that the GC can be more efficient about managing, you will reduce CPU utilization as well.
+
+
+@kenn are you seriously arguing that a process is the same weight as a pthread? That is not true whatsoever. I don't know how many workers you are running relative to your number of CPUs, but we can't run 100 processes per server with REE, even on servers with 16 CPU cores. Beyond just memory usage, CPU utilization (largely due to the garbage collector) is too high, and we see higher throughput by reducing the number of processes.
+
+
+>>>rosenfeld, Contributor
+
+
+@tarcieri I don't think any GC optimization would be significative here.
+
+
+Furthermore if I recall correctly, threads are implemented as processes on Linux
+
+
+Also, I've made some benchmarks yesterday and using threads (pool limit of 50) and 50 processes served performed about the same with a fairly simple new Rails app. I've run something like "ab -n 150 -c 50 http://localhost:3000/test/index". The difference is that the multi-process approach required almost 1GB for a fresh minimal Rails app.
+
+
+>>>tarcieri, Contributor
+
+
+@rosenfeld "Furthermore if I recall correctly, threads are implemented as processes on Linux"
+
+
+Even if this were true, which I can assure you it is not, "process" in this context equates to an entire Ruby virtual machine as compared to a Ruby Thread. I can certainly assure you that the costs of the former are significantly higher on all fronts, even with CoW+forking, than the latter.
+
+
+Add a "sleep 5" into your controller to simulate access to a slow API and you will see a significant difference. Or better yet, just read @tenderlove's blog post:
+
+
+http://tenderlovemaking.com/2012/06/18/removing-config-threadsafe.html
+
+
+>>>kenn, Contributor
+
+
+@rosenfeld on Linux, creating a thread eventually calls clone() and it internally calls do_fork(). Also fork() calls clone() and do_fork(). So yes that's true.
+
+
+>>>rosenfeld, Contributor
+
+
+http://www.makelinux.net/alp/032
+
+
+>>>tarcieri, Contributor
+
+
+By definition, processes do not share memory (barring certain SysV oddities) and threads do. All that said, it's irrelevant to the discussion, where "process" equates to "Ruby VM", and "thread" equates to "Ruby Thread"
+
+
+>>>kenn, Contributor
+
+
+@tarcieri with that simplistic statement (threads share memory while processes do not), you are only talking about visibility of shared memory, but it could actually be the same physical memory, until it's mutated - that's indeed the effect of CoW.
+
+
+
+;##D56 In the real word, Cow is less efficient thatn threads
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D55
+;##SEN NEU
+
+But I agree with you that in the real world, CoW isn't nearly as effective as threads. CLONE_VM is the most significant option to clone() call, that is. I'm just pointing out that multi-thread is, at least in theory, very close to multi-process. And not worrying about thread-safety, with transparently shared memory, is a huge win for developers.
+
+
+I've +1'd to your suggestion anyway, so...
+
+
+>>>thedarkone, Contributor
+
+
+
+;##D57 Cow friendly processes end up disabling GC algorithms
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+@kenn @rosenfeld The problem with CoW friendly processes is that they impede the most efficient GC algorithms (moving/generational GCs). It also quite difficult to CoW-friendly share the JIT-ed Ruby code.
+
+
+>>>rosenfeld, Contributor
+
+
+@thedarkone Exactly, deploying threaded application is a way simpler approach and that is why only Ruby frameworks have largely adopted multi-process deployment as far as I can tell. Most stablished servers will spawn (or delegate) new threads on new requests, not new processes. But it seems that there is an historical reason for that since MRI always had bad threading support, specially before 1.9. But now that Rails is no longer targetting 1.8 I guess it should be time for changing the mentality.
+
+
+>>>rosenfeld, Contributor
+
+
+Also, I can't really understand why people find multi-threading programming for web applications so complicated. Unless you do a concious choice of sharing state among requests this should never happen. And if you chose to do it then it is likely that you also know the implications and will put mutexes around the shared object which is also pretty simple. Web applications usually are much simpler than most other threaded applications that can require more effort for doing proper threaded programming. And even in those cases, it is just another discipline to learn. Threaded-programming is not that hard. People over-estime it. It is just that some people in the Ruby community are not used to multi-thread programming yet. But they are smart and should learn about it very quickly if they don't already know how to write multi-threaded safe code.
+
+
+>>>kenn, Contributor
+
+
+@thedarkone good point. there's always more complicated trade-offs in details, that's why I don't bet all my money on either threads or CoW. I found in this conversation that threads are overrated (even without GIL like JRuby) so I took the stance for promoting CoW a little bit.
+
+
+But honestly, switching logical address space is costly (switch_mm() does nothing with threads) if you have 100s of them. Also as @tarcieri pointed out, GC overhead would be significant, as they run per process.
+
+
+That said, I don't see any realistic rationale for threaded concurrency yet.
+
+
+For instance, we need N+ processes for N cores anyway, assuming unfortunately we'll continue to have GIL. GIL won't go away anytime soon. And by saying N+, I mean up to N*2, depending on I/O ratio in our app. We could ask New Relic for real data but I believe ruby/db breakdown in time spent would be something around 2:1 in a typical Rails app. If your database is slower than this, adding ruby concurrency won't help anyway, it just makes the situation worse so fix your query. If we assume ruby:db = 2:1, we only need N * 1.5 processes.
+
+
+
+;##D58 At this scale, threads or processes shouldn't matter much
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Guess what I'm saying? With this typical breakdown scenario, we need at least N worker processes, whichever you choose Puma or Unicorn, to utilize CPU cores, and to save iowait, we only need 50% more concurrency. 2 threads per process is more than enough. Why not just add 50% more processes instead? You don't need 100s of concurrency for 16 CPUs. You need about 24 processes. That's roughly the range we're talking about, and in this range, 24 threads or 24 processes shouldn't matter much, with CPU affinity of modern kernels.
+
+
+If you have a quad-core processor, and a process size is 60MB, you need 60MB * 4-cores * 1.5 = 360MB RAM (not considering CoW, even). And that's our real setup on Linode 512 (many of them btw), the cheapest plan on one of the most popular VPS.
+
+
+
+;##D59 Other arguments about it
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D58
+;##SEN NEU
+
+We could argue that iowait is not just database, we have external APIs like twitter, facebook, etc. and that is a valid argument. But things can go crazy, yesterday Twitter went down for 2 hours, and if an app depends and blocks on Twitter, it will go down with Twitter anyway, no matter how many concurrency it had. If we don't want to let the entire site down, we need to have asymmetric control to external dependency (segment workers that do/don't handle external APIs), rather than having more concurrency. Or if you have 10,000s of external dependency like web crawlers, use an evented server. From this perspective, threaded concurrency makes very little difference from multi-processes in practice.
+
+
+And I have to disagree with @rosenfeld on overestimated thread-safety. It's not that hard to write, if you are aware upfront, but it's extremely hard to track down the bug once it's slipped and deployed. You can never find the bug on development environment, and it's hard to write sane tests for them. How many people here have actually written tests for race conditions? If you have, you know what I mean.
+
+
+So, not worrying about thread safety (both GIL and single concurrency per process) has been a big "feature". It's the best default, ever. And now we shed lights on another cool option.
+
+
+>>>kenn, Contributor
+
+
+
+;##D60 Allow_concurrency is the flag that should be removed
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+After reading @tenderlove's post once again, I think that allow_concurrency is the one which should be removed completely. That's the responsibility of servers, not Rails. So removing allow_concurrency (Rack::Lock, that is) from threadsafe! bundle seems sufficient to me, no?
+
+
+
+;##D61 Threadsafe should be kept
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL ELAB D60
+;##SEN NEU
+
+preload_frameworks, cache_classes and dependency_loading are all useful, so we could continue to bundle those three with threadsafe!. And threadsafe! should be enabled by default for production, as this ticket suggests.
+
+
+>>>bts, Other
+
+
+@kenn "For instance, we need N+ processes for N cores anyway, assuming unfortunately we'll continue to have GIL. GIL won't go away anytime soon."
+
+
+
+;##D63 We should not keep Rails behind because YARV can't handle thread concurrency
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+There's no GIL in JRuby and it will soon be gone in Rubinius. I don't think we should hold Rails back because YARV can't handle threaded concurrency yet.
+
+
+>>>kenn, Contributor
+
+
+@bts sure, but what for? In my story, I said 6 processes take only 360MB of RAM. A single JVM with true threaded concurrency could use even less memory while fully utilizing CPU cores. Nice, but isn't 360MB small enough already?
+
+
+In the future, we'll have much more cores, like 128 in a single box, and that's when no-GIL threaded concurrency will be truly useful, in a practical sense. Will that future come next year? No. What we've been seeing instead is that servers are going all cloud and those many cores aren't fully allocated to a single Linux VM. RAM is cheaper than CPU.
+
+
+With a cloud with extremely poor CPUs the situation gets to the extreme. I've seen many setups on EC2 that there are plenty of free memory while CPU cores are pegged and load average is high.
+
+
+>>>rosenfeld, Contributor
+
+
+@kenn Exactly. You're able to serve 6 concurrent requests with 360MB while you could serve about a hundred concurrent requests depending on what your application does in a threaded environment running on YARD.
+
+
+I wouldn't be surprised if a threaded Redmine was able to serve bugs.ruby-lang.org in a 256MB VPS, but I don't thik it would suffice in a multi-process environment.
+
+
+>>>kenn, Contributor
+
+
+@rosenfeld we're talking about throughput, right? If average response time is 50ms, a single concurrency could serve 20 requests per second. If you have 6, 120 requests per second. "A hundred concurrent requests" means a hundred concurrent query to the database (not considering connection pool).
+
+
+A connection in the database is much more serious than ruby concurrency. It takes 8MB stack space + many other per-connection buffers for each. Too many Ruby concurrency than necessary is harmful, that's my point. In my story, 6 concurrency because 6 is optimal. Beyond 6 is too many.
+
+
+>>>rosenfeld, Contributor
+
+
+Some requests could be consuming third-party APIs like Twitter, FB or GitHub instead of relying on a connection from database pool. Also, non RDBMS have a different memory allocation scheme.
+
+
+
+;##D62 It would be great to have low-level control to use load sharing rules
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+It would be great if we could have a low-level control about our threads and/or processes. For instance, use rules like:
+
+
+
+
+All database-dependent requests should share those 6 threads/processes.
+
+
+All long-running report requests should share another 3 threads/processes.
+
+
+Third-party API consumers should use another pool of threads/processes.
+
+
+...
+
+
+
+
+That would be really awesome, but I guess currently we'd need something like a load balancing proxy for distributing requests like this... :( And that means that different processes would be required which prevent one from sharing in-memory state among those processes unless they use something like memcached.
+
+
+>>>tarcieri, Contributor
+
+
+@kenn "If average response time is 50ms..."
+
+
+I don't know what Rails apps you work on, but I have never worked on any site where the mean response time was 50ms. It has typically been much higher than that.
+
+
+@rosenfeld "Some requests could be consuming third-party APIs like Twitter, FB or GitHub"
+
+
+Want an example of APIs that are extremely important but notoriously slow? Payment gateways. Imagine it takes 5 seconds to process a payment (this is not unrealistic). Imagine you have 16 Unicorn workers on a given server (let's say 4 cores). This means with only 16 payment processing requests you have completely exhausted the capacity of this server, which is going to be sitting there idle while the payment gateway continues processing those requests.
+
+
+Now let's say we use 10 threads per worker instead, and one worker per CPU instead of 4. We can now process 40 payments requests simultaneously on this same server.
+
+
+These are not unrealistic numbers in either respect. Threads make concurrency cheaper.
+
+
+@kenn "A connection in the database is much more serious than ruby concurrency."
+
+
+I work on a very, very large Rails web site. Our main bottleneck right now is the CPU time spent in the garbage collector. Trying to eke out additional concurrency via REE processes (even with CoW) is not possible because we do not have the CPU capacity available thanks to GC time.
+
+
+Database connection concurrency is a comparatively minor issue.
+
+
+>>>tenderlove, Owner
+
+
+Hey folks, I'm closing this pull request.  We are going to remove the lock and enable eager loading for production, but not using this patch.  I am personally in favor of @fxn's suggestions on adding a boot_strategy config, but I don't think this pull request is the right forum for that discussion.
+
+
+>>>kenn, Contributor
+
+
+
+
+Some requests could be consuming third-party APIs like Twitter, FB or GitHub instead of relying on a connection from database pool. Also, non RDBMS have a different memory allocation scheme.
+
+
+
+
+@rosenfeld At least MongoDB has the same memory allocation scheme, though the default stack size has been reduced to 1MB since 2.0.
+
+
+
+
+I don't know what Rails apps you work on, but I have never worked on any site where the mean response time was 50ms.
+
+
+
+
+@tarcieri probably because your app renders views. I find rendering views is the most CPU intensive part in Rails, but my app is mostly a bunch of APIs that feed JSON to iOS/Android devices. (and we're fanatical about keeping the json size as small as possible). In our case, response time ranges from 20ms to 200ms, average being just above 50ms. We off-load the rendering CPU cost to the client devices.
+
+
+Or, if you're on EC2, it's because EC2 is extremely slow. :) Typically 2x to 3x slower than VPS or self hosted.
+
+
+
+
+Payment gateways.
+
+
+
+
+
+;##D64 It makes sense to use threader for a always slow service
+;##ROLE ETC
+;##INV T
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Ah, that is a legit and great example, in that case I would choose Puma over Unicorn. :) It makes sense to use threaded server for always slow external services. Maybe I'm too spoiled by Stripe and Apple's reasonably fast In-App Purchase verification server.
+
+
+
+
+Our main bottleneck right now is the garbage collector.
+
+
+
+
+I also work on a significantly large Rails app with 15 million users on mobile devices, and there I have experienced many kinds of problems, but never seen GC to become the primary source of bottleneck. Again, probably because we don't render large HTML views, mostly JSON.
+
+
+>>>jrochkind, Contributor
+
+
+
+
+I am actually curious about how threadsafe mode might affect MRI deployments, actually. In theory, you could improve throughput of a single MRI instance by having threading-aware C extensions and funneling additional requests through it, so blocking calls don't just put that instance to sleep.
+
+
+
+
+[different person...]
+
+
+
+
+That said, I don't see any realistic rationale for threaded concurrency yet.
+For instance, we need N+ processes for N cores anyway
+
+
+
+
+I've been running Rails in config.threadsafe! for over a year, using MRI. Specifically to deal with longish request times, that are mostly I/O bound (waiting on third-party http API's).   Also it can be a way cheaper way to scale on any platform (including self-hosted) where your cost is per-process or per-RAM unit.  It is simply not true that there are no use cases for MT concurrent thread dispatching, even with the GIL. (I/O boundness means the GIL is not a significant barrier). Even with the truth that with the GIL, you still want N processes for N cores, you might want those processes to do MT concurrent request handling. (Plus people ARE deploying on rubies without the GIL).
+
+
+Without any special funnelling existing requests through any special extensions, it pretty much just works. The only bugs I've run into have been AR ConnectionPool, where I've tried to help address them, with limited success. (I think what's in master/4.0 now mostly does address them, although AR/ConnectionPool's overall design is not great for multi-threaded concurrency, Sequel and DataMapper both do a lot better here in their design. I could say more).
+
+
+
+
+JRuby has supported concurrent requests on the same Rails application for years...since 2.2 introduced "threadsafe" mode. Since that time, many (most?) people have opted to continue running Rails with multiple instances even on JRuby (by having multiple JRuby instances in the same process). That is not a Rails issue; that is a deployment issue...a server issue.
+
+
+
+
+Well, it's both.  I think one of the reasons people even in jruby (where it's pretty easy to enable) have chosen to not run with multi-threaded concurrent request handling is because Rails is perceived to be buggy under that scenario. And that perception has in part been justified.
+
+
+Few MRI-possible deployment solutions have supported MT concurrent request dispatching. Possibly in part because of the same perception, and an added perception that because of the GIL MT concurrent request dispatching is not useful (not true, a misperception).  However, this is starting to change -- upcoming Passenger Enterprise will support this even under MRI. thin 2.0 says it will support this even under MRI. and of course puma supports this, even under MRI.
+
+
+To actually get MT concurrent request handling, you need a deploy/app server that supports it, AND you need Rails to support it. You need both. But the deploy solutions are starting to, and Rails have it on by default will send a message that Rails is serious about supporting it for real, encouraging deploy servers to support it, and resulting in more people using it, which will result in more remaining bugs and mis-designs being fixed.
+
+
+
+;##D65 enabling threadsafe, even if the deploy solutiond doesn't support it, doesn't cause problem
+;##ROLE ETC
+;##INV F
+;##BCOM T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+If a rails app has threadsafe on, but the deploy solution doens't support it -- you won't run into any bugs related to concurrent request handling, no problem. It won't help you much, but it won't really hurt you much either (with the exception of having to pre-load more, making app startup slower. How slow ruby, esp MRI, is at require/loading is to some extent a root problem.).
+
+
+It's a good idea.
+
+
+(It should be noted, that indeed if you turn config.threadsafe on in development, it can wreak havok with dev-mode auto-reloading. (cache_classes false).   I have run into this, yes. It can be a problem. I am not sure if there is a good solution. I end up having to give up on dev-mode class-reloading when I want threadsafe even in dev. Another option is certainly threadsafe in production but not dev).
+
+

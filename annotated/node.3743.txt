@@ -1,0 +1,1465 @@
+>>>evanlucas, Owner
+
+Replace it with worker.voluntaryExit. Print deprecation message when
+getting or setting until it is removed.
+
+Ref: #3721
+
+>>>MylesBorins, Owner
+
+LGTM
+
+>>>MylesBorins, Owner
+
+Test suite passes locally fwiw
+
+>>>Thread start
+
+>>>JungMinu, Member
+
+please add exit, it was just voluntary -> it was just voluntary exit
+
+>>>Thread end
+
+>>>JungMinu, Member
+
+LGTM with one comment
+
+>>>mikeal, Owner
+
+;##D1 Migarating would be a better term than depecreating
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+"deprecate" is the wrong term here since you are ensuring exisiting compatibility. maybe "migrating" instead?
+
+>>>mikeal, Owner
+
+also, maybe not print the deprecation warning until the next major release.
+
+>>>Thread start
+
+>>>MylesBorins, Owner
+
+;##D2 Do we need to watch for the suicide action?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+do you need to watch for the 'suicide' action here to guarantee compatibility?
+
+>>>evanlucas, Owner
+
+;##D3 The message is just internal
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D2
+;##SEN NEU
+
+since the message should only be internal, I don't think so. Unless you or someone else feel differently about it
+
+>>>MylesBorins, Owner
+
+makes sense to me 😄
+
+>>>Thread end
+
+>>>jasnell, Owner
+
+LGTM but we need to be clear about the impact of this, however. It is quite likely a semver-major change (any time we talk about changing event names and deprecating existing terms we likely have to consider it a semver-major). That means getting a deprecation notice into v5 first, then not landing the actual change until v6.
+
+>>>mikeal, Owner
+
+@jasnell if it's backwards compatible why would it be a semver-major change?
+
+>>>jasnell, Owner
+
+;##D4 Are we certain this is bcompatible??
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+I said "likely" ;-). The one part of this change that is potentially not backwards compatible is the event that's being triggered (https://github.com/nodejs/node/pull/3743/files#diff-0faa53fc02580d5de2ebb484c41d691cR696). Specifically, are we reasonably certain that this isn't breaking?
+
+>>>Qard, Member
+
+;##D5 ExitedVoluntarily would be a better name
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+A more boolean terminology like exitedVoluntarily might be a bit better. I could see someone thinking voluntaryExit is a function name.
+
+>>>evanlucas, Owner
+
+@jasnell I believe that those messages are only sent to/from a cluster by the cluster and workers.
+
+>>>jasnell, Owner
+
+Ok. If we're reasonably sure that it's not breaking, I'm good with semver-minor.
+
+>>>evanlucas, Owner
+
+@Qard I'm fine with either. If you feel strongly about it, I will change it
+
+>>>Thread start
+
+>>>dandean, Other
+
+;##D6 Shoudl this include informations on date/version?
+;##ROLE ETC
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Should this message include information about when (date or version) to expect deprecation to become removal?
+
+>>>mikeal, Owner
+
+Should be slated for a major version. Honestly, we should just merge this and then open another PR right away with the deprecation warning since master is v6.
+
+>>>evanlucas, Owner
+
+Should I just add a second commit? That way we can cherry-pick the first over to v5 and not the actual deprecation?
+
+>>>mikeal, Owner
+
+yes :)
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+;##D7 This could break if people try to enumerate a worker
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Note: it's possible this could break if people are trying to enumerate the values of a worker object. I remember this happening with something http, though I think it will be less likely here.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+At least for the short term, we should probably note that this used to be called suicide, just so people don't get confused who may have been using it.
+
+(If we are landing in v5 or v4)
+
+>>>mikeal, Owner
+
+;##D8 WOudl it better to put this?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+would it best to put ### worker.voluntaryExit (formerly worker.suicide)?
+
+>>>Thread end
+
+>>>Fishrock123, Owner
+
+@ChALkeR I know you didn't feel for it, but could you run some npm analysis on the usage of this API if possible?
+
+(Also cc @chrisdickinson)
+
+>>>Fishrock123, Owner
+
+;##D9 We should find a version of voluntaryexit that makes more sense as boolean
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+As others have said I also think it may be worthwhile to think of a version of voluntaryExit that makes a little more sense as a boolean, if that's the kind of thing we want.
+
+>>>evanlucas, Owner
+
+;##D10 ExistedVoluntarily is the best
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D9
+;##SEN NEU
+
+Although long, if that is the way we want to go, I think exitedVoluntarily is the best
+
+>>>Fishrock123, Owner
+
+;##D11 We should avoid long names
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL GEN D10
+;##SEN NEU
+
+So long as we can avoid naming like exitedVoluntarilyFromWorkerProcess ala what a certain other programming language is often blamed for I think we are mostly fine.
+
+>>>evanlucas, Owner
+
+Updated to change to exitedVoluntarily. Also includes a commit that prints a deprecation warning.
+
+>>>mikeal, Owner
+
+hrm... I may have misspoke. since we tag the PR to automatically do the version updates we may need two PRs for the two commits since one is semver-minor and one is semver-major.
+
+>>>evanlucas, Owner
+
+ok, opened #3747 as the follow up
+
+>>>Thread start
+
+>>>brendanashworth, Member
+
+These tests should probably only be changed when / if .suicide is removed, that way we retain test coverage for it. One or two can be changed but not all of them.
+
+>>>Thread end
+
+>>>ChALkeR, Owner
+
+Is soft-deprecation semver-minor?
+
+See #1854 (comment) (by @isaacs).
+What's the actual policy here?
+
+>>>ChALkeR, Owner
+
+@Fishrock123
+
+@ChALkeR I know you didn't feel for it, but could you run some npm analysis on the usage of this API if possible?
+
+Will do when I'll get home (in a few hours), those stats are on my PC. I did a preliminary check that time and remember there being a little more than 100 modules using suicide, but I'm not sure if I remember things correctly.
+
+>>>ChALkeR, Owner
+
+Also note that cluster API is marked as stable.
+That property is not only exposed, it's documented as being a part of a stable API.
+
+Compatibility with the npm ecosystem is a high priority, and will not be broken unless absolutely necessary.
+
+This PR even in its current state looks like a semver-major to me.
+
+>>>evanlucas, Owner
+
+It is still an alias with a getter/setter, so it can still be used the same way it could before
+
+>>>ChALkeR, Owner
+
+It changes stable api documentation, soft-deprecating things.
+I will get home in a few hours and will elaborate my reasoning.
+
+>>>evanlucas, Owner
+
+Should I make the property enumerable?
+
+>>>OrangeDog, Other
+
+Using "self" instead of "voluntarily" would be shorter, for those worried about that sort of thing.
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+I think this got lost in a commit, so:
+
+;##D12 This could break if people try to enumerate a worker
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Note: it's possible this could break if people are trying to enumerate the values of a worker object. I remember this happening with something http, though I think it will be less likely here.
+
+>>>Fishrock123, Owner
+
+;##D13 Settings this fromt he outside would be pointless
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+This seems read-only anyways, setting it from the outside would be pointless and non-sensical.
+
+(Edit, this likely isn't going to land in LTS, but even for stable it may be better.)
+
+>>>Fishrock123, Owner
+
+For reference, people sometimes do things that are incompatible with getters (unfortunately), so for an already released stable branch, this guarantees it's not breaking.
+
+See #1591
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+A sub-heading might be fine.
+
+A second commit should be added which removes this for the master branch.
+
+>>>evanlucas, Owner
+
+Should that just be in the semver-major pr?
+
+>>>Fishrock123, Owner
+
+Yeah it could be in the actual deprecation.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+;##D14 This could also be called exitedVoluntarily
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Since the language makes more sense to begin with, this can just be exitedVoluntarily, I think.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+Ditto
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Fishrock123, Owner
+
+Can probably also be the same.
+
+>>>Thread end
+
+>>>Fishrock123, Owner
+
+;##D15 Would willingly be better than voluntarily?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+I'm noting voluntarily isn't easy to type, would willingly be better? http://www.thesaurus.com/browse/voluntarily
+
+>>>ChALkeR, Owner
+
+Ok, I'm at home now.
+
+All of the below expresses my personal point of view (except for obvious facts and citations), please keep that in mind when reading. So, my reasoning:
+
+This is a documented property in an API that is marked stable.
+«Stable» is documented as:
+
+Stability: 2 - Stable
+The API has proven satisfactory. Compatibility with the npm ecosystem
+is a high priority, and will not be broken unless absolutely necessary.
+
+The reason for removing this is non-technical.
+While I agree that this shouldn't be originally commited under that name, it's already there, used, and documented, and the removal/deprecation is not forced upon us by a thirdparty (as with v8) or a security issue.
+
+Even _prefixed API changes (those are not documented and are viewed as «internal») broke things, and people got quite upset about that. See #1854 (and issues linked there).
+
+Documentation is primary, especially for things marked as being «Stable», if there are no obvious mistakes in it. Changing documentation for a stable API is an important change, especially when an property is renamed or removed. I consider fixing the API to conform with documentation or removing/deprecating an undocumented property as a less important change then changing the documentation if it matches the API.
+
+Speaking of the ecosystem breakage: this commit breaks it. It doesn't matter that the code doesn't throw warnings. For some, using even softly deprecated API is not acceptable, because they are concerned about support being removed in the the following release.
+
+This commit and the deprecation warning commit would make people write something like w.hasOwnProperty('willinglyExited') ? w.willinglyExited : w.suicide instead of w.suicide. If they don't do that — they will be hitting deprecated API.
+Actual code samples (one per line):
+
+Now imagine the above replacement for all of those cases. We would get:
+
+;##D19 It will still require a check on suicide
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+And you can't tell them not to — some people still support 0.8, 0.12 is going to be supported by a lot of modules for a long time. Even if you introduce your new willinglyExited (or whatever it would be called) support in 4.x LTS — people would be still forced to check for it and use suicide.
+Any decision to deprecate this would cause a huge amount of work and a huge amount of ugly, unnecessary code.
+
+Also note how people are declaring suicide on their own properties to match with worker (second line in the code block above). The previous point covers only trivial cases, there are things that are going to break worse, and will require even more non-functional code to work around that.
+
+;##D16 The change is not neeeded
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+The original arguments for this change look to me like overdoing things.
+This word isn't offensive by itself, because it's not directed onto anyone. Specific usage of words could be offensive, without that words are just words. Dictionaries, Wikipedia, books — all those use that word and it doesn't make them bad or inappropriate.
+I agree though that in the current situation this specific choice of wording wasn't perfect, but I don't see how this justifies breaking things.
+If we start treating plain words as being offensive, then we have things a lot worse then suicide in the ecosystem.
+
+I'm against this change, and I'm strongly against pulling that in as a semver-minor.
+
+@Fishrock123 A list will follow in a few minutes.
+
+;##D17 An alias might work
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL ELAB D16
+;##SEN NEU
+
+Ah, a note: an alias could work if some people feel very serious about that wording and if that justifies adding an alias, but without the deprecation. Even in the documentation.
+
+>>>ChALkeR, Owner
+
+@Fishrock123
+
+Grep for .suicide over npm modules: https://gist.github.com/ChALkeR/6b25950a20949195246d.
+There are, of course, both false negatives and false positives.
+
+Also keep in mind that cluster module is probably likely to be used by the applications themselves (not by the libs), and a large amount of those are supposedly not packaged on npmjs.org.
+
+>>>Fishrock123, Owner
+
+
+The API has proven satisfactory.
+
+Saying we can't realize it wasn't satisfactory is a bad trap.
+
+The reason for removing this is non-technical.
+
+The same argument could probably be used for nodejs/node@93e2830, @@objectTag or whatever the API called doesn't actually cause those to stop functioning.
+
+Even _prefixed API changes (those are not documented and are viewed as «internal») broke things, and people got quite upset about that.
+
+Which is why we need to be careful.
+
+Documentation is primary, especially for things marked as being «Stable», if there are no obvious mistakes in it. Changing documentation for a stable API is an important change, especially when an property is renamed or removed. I consider fixing the API to conform with documentation or removing/deprecating an undocumented property as a less important change then changing the documentation if it matches the API.
+
+That's not how we have worked. #2447 was deemed minor.
+
+Heck we've even considered issuing deprecations on Object.observe and smalloc in Stable and LTS branches.
+
+Speaking of the ecosystem breakage: this commit breaks it.
+
+Clearly why we are working on that. Thanks. :)
+
+This commit and the deprecation warning commit would make people write something like w.hasOwnProperty('willinglyExited') ? w.willinglyExited : w.suicide instead of w.suicide. If they don't do that — they will be hitting deprecated API.
+
+Also note how people are declaring suicide on their own properties to match with worker (second line in the code block above). The previous point covers only trivial cases, there are things that are going to break worse, and will require even more non-functional code to work around that.
+
+that's horrible and we should work to clean up after ourselves.
+
+The original arguments for this change look to me like overdoing things.
+
+community members have indicated in the original thread that is is painful for some of them, even if not to us.
+
+>>>jasnell, Owner
+
+Thank you for doing the analysis!
+On Nov 11, 2015 8:28 AM, "Сковорода Никита Андреевич" <
+notifications@github.com> wrote:
+
+Grep for .suicide over npm modules:
+https://gist.github.com/ChALkeR/6b25950a20949195246d
+There are, of course, both false negatives and false positives.
+Also keep in mind that cluster module is probably likely to be used by
+the applications themselves (not by the libs), and a large amount of those
+are supposedly not packaged on npmjs.org.
+
+—
+Reply to this email directly or view it on GitHub
+#3743 (comment).
+
+>>>Fishrock123, Owner
+
+We should smoke-test those modules if possible against this.
+
+;##D18 A getter/setter seems fine
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEu
+
+I don't see anything trying to delete or otherwise to fancy detection of the old property, so a getter/setter seems fine.
+
+@evanlucas I think making it enumerable would be a good idea though.
+
+>>>ChALkeR, Owner
+
+
+The same argument could probably be used for 93e2830, @@objectTag or whatever the API called doesn't actually cause those to stop functioning.
+
+93e2830 was a soft-deprecation done in a semver-major (despite being labeled as a semver-minor) and those were not functioning correctly for some known cases. There was a reason for removing those.
+
+That's not how we have worked. #2447 was deemed minor.
+
+See above, despite being labeled as a semver-minor, it got only into 4.0.
+And yes, there is no strict policy on that, and I'm upset about it. See #1854, I guess.
+
+community members have indicated in the original thread that is is painful for some of them, even if not to us.
+
+;##D20 Alias is fine, deprecation is bad
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D18
+;##SEN NEU
+
+I'm not strongly against adding an alias if that is the case. I'm not even against the alias being the main property (if the getter-setter will be identical to what there was before, keep in mind that those sometimes failed), so that the commit logs would get the new property name. I'm against the deprecation.
+
+>>>Fishrock123, Owner
+
+
+See above, despite being labeled as a semver-minor, it got only into 4.0.
+
+Only by virtue of timing.
+
+;##D21 Alias is fine, deprecation is bad
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D18
+;##SEN NEU
+
+I'm not strongly against adding an alias if that is the case. I'm not even against the alias being the main property (if the getter-setter will be identical to what there was before), so that the commit logs would get the new property name. I'm against the deprecation.
+
+
+;##D22 Would it be better to make the new one be getter?
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D21
+;##SEN NUE
+
+Would making the new one be the getter for a deprecation cycle help?
+
+>>>ChALkeR, Owner
+
+
+Only by virtue of timing.
+
+It doesn't matter. And yes, we need a policy on those things.
+
+Would making the new one be the getter for a deprecation cycle help?
+
+I doubt that. As I already said: even the documentation-only deprecation seems like a bad idea to me.
+
+>>>mikeal, Owner
+
+If I remember correctly @chrisdickinson worked on the deprecation policy, maybe he can help out here.
+
+>>>ChALkeR, Owner
+
+Ok, I have manually selected four packages from that list.
+
+@Unitech for https://github.com/Unitech/pm2/blob/master/lib/God/ActionMethods.js#L297,
+@julianlam and @barisusakli for https://github.com/NodeBB/NodeBB/blob/master/loader.js,
+@hij1nx and @ralphtheninja for https://github.com/hij1nx/liveswap/blob/master/index.js#L52,
+@tshemsedinov for https://github.com/tshemsedinov/impress/blob/master/lib/impress.js (and another file in that repo).
+
+What would your course of actions be if worker.suicide is soft-deprecated (doc-only)? What would it be if it's hard-deprecated (warning)? What would the code look like?
+
+>>>ChALkeR, Owner
+
+@rvagg Woah, I was not aware that the meeting is planned today =). Could this issue be postponed till the next week meeting? I guess that not all have read it, and I guess that there should be a bit more prior discussion before the resolution.
+
+>>>mikeal, Owner
+
+Quick question, why did we already add the ctc-agenda tag?
+
+Usually we try to reach a consensus through review before escalating to the CTC to make a decision. As it stands the only objections are from @ChALkeR and each of them are actively under discussion and could potentially be resolved without escalating to the CTC. It's only if some objections reach an impasse that we would escalate, which could happen here but hasn't happened yet.
+
+>>>ChALkeR, Owner
+
+@mikeal I added the ctc-agenda tag, because from my point of view this issue is controversal enough, and the objections from my side could not be resolved without removing the deprecation completely or without a CTC resolution. Also note that this PR already received three (or two) LGTMs, and there are enough people who support this change.
+
+Tell me if I was not the using the label correctly. I consulted with GOVERNANCE.md prior to adding the label:
+
+Collaborators may opt to elevate significant or controversial modifications, or modifications that have not found consensus to the TC for discussion by assigning the tc-agenda tag to a pull request or issue. The TC should serve as the final arbiter where required.
+
+…
+
+Any community member or contributor can ask that something be added to the next meeting's agenda by logging a GitHub Issue. Any Collaborator, TC member or the moderator can add the item to the agenda by adding the tc-agenda tag to the issue.
+
+>>>ChALkeR, Owner
+
+;##D23 If the goal is deprecation, an alias is necessary for serveral major releases
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+If the desired effect is deprecation and removal of .suicide — an alias has to be present for several major releases prior to the soft deprecation. Or else, people would be forced to write code like
+w.hasOwnProperty('willinglyExited') ? w.willinglyExited : w.suicide each time to access that property in order not to hit a deprecated method.
+
+>>>MylesBorins, Owner
+
+So it would seem that there are a number of tools that are built on top of cluster for managing workers.
+
+For example forky and throng
+
+While forky does reference suicide on one line, throng does not.
+
+I'm going to try and get a feature into citgm that can quickly smoke test an array of modules against a build of node. If you want to make a definitive list I can do a pass at smoketesting
+
+>>>mikeal, Owner
+
+
+the objections from my side could not be resolved without removing the deprecation completely or without a CTC resolution
+
+Ah, see, I don't know that the deprecation is off the table except for maybe a "docs only" deprecation (note that it would still say something like "formerly worker.suicide").
+
+But you're using the label correctly if you believed that point could not be resolved.
+
+>>>ChALkeR, Owner
+
+
+Ah, see, I don't know that the deprecation is off the table except for maybe a "docs only" deprecation (note that it would still say something like "formerly worker.suicide").
+
+Sorry, I am not sure that I understand that phrase correctly. A «doc only» deprecation is still a deprecation, see my point 4 in #3743 (comment) and #3743 (comment).
+
+I consider removing or adding a deprecation label to https://nodejs.org/api/cluster.html#cluster_worker_suicide as deprecation, and
+
+the objections from my side could not be resolved without removing the deprecation completely
+
+applies to that.
+
+>>>mikeal, Owner
+
+@ChALkeR in terms of our current policies I don't think "doc only" would be considered a semver-major deprecation. I doubt it's explicitly covered but we have talked about changes that break "tests but not actual code" as not being semver-major, so I would say that the bar for semver-major would be "does this break any in-use code." Although I think the CTC is talking about this again today in regards to changes in error message text.
+
+That doesn't address all issues you may have with the doc-only deprecation but I thought it might add a little context.
+
+>>>ChALkeR, Owner
+
+@Fishrock123
+
+That's not making it smaller, that's making it bigger:
+
+Those lines were from different files, as I already stated above. Those can't be covered by a single const exitedAPI for obvious reasons =).
+
+>>>Fishrock123, Owner
+
+
+I doubt that. As I already said: even the documentation-only deprecation seems like a bad idea to me.
+
+Well, that's how we've been doing things. ¯\_(ツ)_/¯
+
+I think it's a good idea to let users known in the docs that something may not work in the future.
+
+>>>jasnell, Owner
+
+This is going the right direction but I'm kinda losing the thread on which parts are being done here vs. the other PR. I don't see why this should be on the CTC agenda but not objecting to it either. I think it's something we can discuss and resolve quickly.
+
+>>>mikeal, Owner
+
+@jasnell it's off the CTC agenda for this week.
+
+>>>jwueller, Contributor
+
+Not a collaborator (though apparently nominated).
+
+;##D24 Name is not great
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I've had someone close to me attempt suicide, and the function name is obviously not a brilliant choice, but I nonetheless agree that a non-technical reason does not justify a deprecation. It appears a little selfish of me to expect potentially several thousands of developers having to change their programs in the future because of something I am dealing with. We are working in a technical context here, and I agree that it should be treated as such. Words themselves are not bad, as previously noted.
+
+I would like to explicitly express support for @ChALkeR's points, and reiterating that this PR would change a public, documented and stable API. There seem to be some inconsistencies here.
+
+>>>orangemocha, Member
+
+;##D25 Quit would be a better name
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D24
+;##SEN NEU
+
+Wording suggestion: for sake of brevity, we could use "quit" which does indicate voluntary self-termination.
+
+>>>evanlucas, Owner
+
+;##D26 Quit is a bad name, sounds like a function
+;##ROLE OP
+;##INV F
+;##FORM SOL
+;##REL REFR D25
+;##SEN NEU
+
+While I agree that exitedVoluntarily is quite long, I think replacing it with quit would be confusing as it sounds like it could be a function name instead of a boolean
+
+>>>orangemocha, Member
+
+Yes, it's unfortunate that the past tense is the same. 'hasQuit' would be the unambiguous version.
+
+>>>jasnell, Owner
+
+;##D27 What about exited?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D26
+;##SEN NEU
+
+I may be missing something but why not simply .exited? It's short, simple
+and to the point. Sure we could keep debating the color of this particular
+bikeshed but I don't see the value.
+On Nov 17, 2015 2:34 PM, "Alexis Campailla" notifications@github.com
+wrote:
+
+Yes, it's unfortunate that the past tense is the same. 'hasQuit' would be
+the unambiguous version.
+
+—
+Reply to this email directly or view it on GitHub
+#3743 (comment).
+
+>>>ChALkeR, Owner
+
+@jasnell Please note that what I am bringing up to the CTC (and why I labeled it with ctc-agenda) is not the exact name of the new variable, but the acceptance of the deprecation in a Stable library over this issue and the exact procedure for such a deprecation.
+
+>>>jasnell, Owner
+
+@nodejs/ctc discussed today. decision was made to add a deprecation warning for the .suicide flag in the v5.x docs along with the new alias added to the code (There may be a bit more discussion on exactly what label the new alias will have). A hard deprecation (using util.deprecate) notice will be added in will not land until at least the v6.x stable but could happen later than that. Because of backwards compatibility concerns, no target has been set for the actual removal of the .suicide term. There will be no change in any LTS branch.
+
+(updated to be specific that the deprecation warning in v5.x will be in the docs and alias added to the code)
+(updated again to reflect reality ;-) ... thanks @Fishrock123 )
+
+>>>ChALkeR, Owner
+
+@jasnell Hard deprecation in the next major is not what I hoped for, but thanks for discussing it =).
+
+>>>ChALkeR, Owner
+
+;##D28 Can we come up with a name for the property?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Ok. To everyone concerned here: can we come up with a name for the new property, please?
+Delaying it will reduce the window that people would have to write and merge their patches in before the 6.0 release.
+
+>>>Fishrock123, Owner
+
+The hard deprecation isn't necessarily going to be in v6, I did state that it was the minimum, and that we could delay to v7 or further if necessary.
+
+>>>Fishrock123, Owner
+
+;##D29 Exited might work
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELABD 28
+;##SEN NEU
+
+I think exited might be ok but I'd like more comments. I don't see killing the process as it exiting, not sure how unix usually looks at these kind of things.
+
+>>>MylesBorins, Owner
+
+I'm doing some research right now on if there is any prior art in unix for this
+
+>>>ChALkeR, Owner
+
+Alternatives (collected from this PR and the issue, the full list):
+
+voluntaryExit — @evanlucas
+
+exitedVoluntarily — @Qard, @evanlucas
+
+willinglyExited — @Fishrock123
+
+voluntarilyExited
+
+exitedVoluntarilyFromWorkerProcess (that was an example of how not to name it)
+
+selfExit
+
+terminated
+
+seppuku (that won't go)
+
+exited — @Fishrock123
+
+intentional — @cjihrig
+
+adjourn — @Fishrock123
+
+stopped — @Qard
+
+Tell me if I'm missing something.
+
+>>>cjihrig, Owner
+
+exited certainly seems like the simplest to type and remember.
+
+>>>mscdex, Contributor
+
+I'm more in favor of delaying the hard deprecation until v7 and implementing the alias and putting out the messaging in the documentation, etc. right now (that will be included in the next v5 release). That way we have at least an entire major version (v6) for people to start the transition process before the pestering begins.
+
+>>>ChALkeR, Owner
+
+@mscdex I could be missing it — what was the exact CTC resolution? Wasn't it to land the hard deprecation in 6.0 as said above?
+
+Note: I'm obviously not for deprecating this in 6.0, just want to clarify things.
+
+>>>mscdex, Contributor
+
+@ChALkeR That's not the impression I had.
+
+;##D30 selfExit seems to be a better name
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL REFR D29
+;##SEN NEU
+
+As far as terminology goes, I'm leaning more towards selfExit as it is short, more descriptive (it was an intentional exit vs. a forceful exit/kill by the parent or other process), and easy to understand.
+
+>>>jasnell, Owner
+
+@Fishrock123 and @mscdex are correct, I had just miss documented it here. That should have read that the hard deprecation won't happen until at least v6.x but could happen later. The more immediate piece is that the new alias and documentation update would happen in v5.x. Thank you @Fishrock123 / @mscdex for the clarification :-)
+
+>>>ChALkeR, Owner
+
+Other alternatives (could be mentioned already or not):
+
+finished
+
+ended
+
+done
+
+completed
+
+concluded
+
+ceased
+
+>>>jasnell, Owner
+
++1 to exited
+
+>>>MylesBorins, Owner
+
+So in unix a process can terminate itself with the raise command
+
+--> https://www.gnu.org/savannah-checkouts/gnu/libc/manual/html_node/Signaling-Yourself.html#Signaling-Yourself
+
+;##D31 We should cosnider the name raised
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D30
+;##SEN NEU
+
+now I don't think it is more descriptive than exited but I think we should consider raised if we are trying to replicate unix api's
+
+>>>Qard, Member
+
+With suggestions like "exited" I think, "Okay, why did it exit?"
+
+;##D32 The name should be tied to what happened
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+I feel like the terminology should more clearly convey wether or not it did what it was expected to and exited cleanly.
+
+>>>forivall, Other
+
+My suggestion (tweeted a week ago): departed
+
+>>>joepie91, Contributor
+
+Just chipping in to note my disagreement with such a change, even as a soft deprecation, for the reasons outlined here, in particular reason 6 (we've seen a similar issue with the streams API, if I am not mistaken). I realize that this is not the issue thread, but that thread was locked, and I have no interest in trolling the topic; I just want to voice my concerns about this change (as an end user of Node.js) in a reasonable manner.
+
+I would also like to challenge the notion that removing "potentially offensive words" is necessarily desirable, for which a great source is this article, especially the remarks about psychological consequences of anxiety avoidance. While I don't really want to get into this discussion as I don't feel it belongs in a technical forum (and I honestly don't have the time for it now, anyway), it appears to be the foundation that this change was built upon, and thus needs discussion.
+
+;##D33 We should not change technical for non-technical reasons
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+In short; I do not feel that a change to a stable API with technical consequences, for the sake of non-technical reasons that may not even be desirable to begin with, is an appropriate decision.
+
+>>>tejasmanohar, Other
+
++1 for what @joepie91 said
+
+>>>jasnell, Owner
+
+The objections are certainly noted and understood. The CTC discussed the matter and made the decision to move ahead with the change. We know it's a controversial change which is why we're taking a very conservative approach on the deprecation of the existing term to minimize the potential negative technical impact and there are currently no other changes being discussed with regards to other labels/words that are in common use.
+
+>>>sam-github, Member
+
+Folks, some of these proposals are not acceptable as a replacement for suicide:
+
+The above code is an example of what most humans would regard as a voluntary exit. However, in it the .suicide aka voluntaryExit aka exited would be false, even though the worker voluntarily exited! Mind-bending.
+
+;##D34 Completed or departed would work as name
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D32
+;##SEN NEU
+
+completed or departed might be OK, they have less association with process exiting or signalling, so we are free to define the meaning.
+
+exited is definitely not.
+
+;##D35 Non-squitor doesn't
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D32
+;##SEN NEU
+
+raised is a non-sequitor... when a worker is disconnected and proceeds to an orderly exit, no signals were involved at all, so what does signal raising have to do with it?
+
+>>>sam-github, Member
+
+;##D36 .expecred is a good replacement
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D32
+;##SEN NEU
+
+Fwiw, I suggest .expected as a replacement for .suicide.
+
+That's what suicide means now: the master or worker called .disconnect() indicating an intention that the worker perform an orderly exit, and then the worker did in fact exit, and suicide is set to true.
+
+So, expected would make more sense as a one-word replacement.
+
+>>>Qard, Member
+
+Good point @sam-github. I'd like a little more context than just "expected" though. What was expected?
+
+>>>julianlam, Other
+
+@Qard, a shutdown was expected. The conditional would read
+
+Is the only problem that suicide is too strong a word?
+
+>>>Qard, Member
+
+;##D37 Just expected doesn't convey the idea completely
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D36
+;##SEN NEU
+
+@julianlam My point is that the "expected" terminology doesn't explain that it was a shutdown that was expected.
+
+I'd really like to get this potentially infinite bike shed sorted though, and just pick something that makes more sense and is friendlier than "suicide" for the terminology.
+
+>>>julianlam, Other
+
+As a joke I was about to suggest .euthanised, but perhaps... .retired?
+
+>>>sam-github, Member
+
+@Qard gracefulShutdown?
+
+>>>evanlucas, Owner
+
+It seems like calling process.exit in a worker should be considered voluntarily killing the worker.
+
+lets you distinguish between voluntary and accidental exit, the master may choose not to respawn a worker based on this value.
+
+That almost seems like a bug to me. I do agree that the terminology doesn't suffice in this case though
+
+>>>sam-github, Member
+
+@evanlucas  That almost seems like a bug to me.: what almost feels like a bug?
+
+>>>evanlucas, Owner
+
+@sam-github sorry, I should have been clearer. The docs state that worker.suicide lets you distinguish between voluntary and accidental exit. The example you gave (at least to me) is a voluntary exit, but it does not set the property.
+
+>>>jasnell, Owner
+
+@nodejs/ctc ... naming this alias is turning into a bit of an endless bikeshed. I'd recommend having the CTC members come up with a couple of names and select one so this doesn't go on forever.
+
+>>>bnoordhuis, Owner
+
+worker.AWOL
+
+>>>Fishrock123, Owner
+
+Does anyone have objections to exited?
+
+>>>cjihrig, Owner
+
+Seems like @sam-github objected to it.
+
+>>>evanlucas, Owner
+
+yea, I don't think exited makes sense after the example @sam-github showed
+
+>>>jasnell, Owner
+
+;##D38 What aobut retired?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL nEW
+;##SEN NEU
+
+Perhaps .retired ? The term has no negative connotation that I'm aware of
+and implies an intentional exit.
+
+>>>tejasmanohar, Other
+
+;##D39 Again, we should not change for non technical reasons
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL ELAB D33
+;##SEN NEU
+
+I don't mean to offend anyone but whole-heartedly agree with @ChALkeR's comment here. Non-technical issues influencing technical decisions is calling for productivity disaster and total confusion. The word suicide wasn't intended to offend anyone or used in the context that it's targeting a person. It means the worker is intentionally exiting and is a great way of describing this. Making decisions based on whether someone is offended by the mere existence of the term isn't optimal in this context, IMHO. We should make decisions based on the intent and context of the terminology- else, we're opening room for endless problems. To cause a breaking change in a stable API over this is irrational.
+
+>>>jasnell, Owner
+
+@tejasmanohar ... at this point any further debate about whether the change should be made is largely moot. The CTC has already discussed the issue and decided that the change will be made. What we're looking to do now is settle on a name for the new alias. The old term will not be going away any time soon so current implementations shouldn't be affected.
+
+>>>sam-github, Member
+
+Perhaps we need a long explicit name, un-node-like as it is. Part of the difficulty in naming this is that the concept being modelled is a bit weird, and the word suicide models that concept very poorly, so when people think of synonyms for suicide, they end up with new terms that are as confusing as suicide was.
+
+Perhaps just a long explicit name is best: exitedAfterDisconnect, which is pretty much the logic in the code used to set the property currently known as suicide.
+
+;##D40 Worker.awol is good
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+Though, I actually like worker.awol === (!worker.suicide), too (@bnoordhuis's suggestion, lowercased). Its short, and actually a pretty good description of the situation: workers aren't supposed to exit unless disconnect was called first, either by the master, or the worker.
+
+>>>joshmanders, Other
+
++1 for worker.awol
+
+>>>sam-github, Member
+
+3 people who like awol... that might make it the must popular so far! :-)
+
+>>>tejasmanohar, Other
+
+lol
+
+>>>aredridel, Contributor
+
+and +1 for retired
+
+>>>Qard, Member
+
+Not sure 'awol' is much better than suicide, with the war connotation. I think 'retired' is decent though, another vote for that here.
+
+>>>bjmiller, Other
+
+;##D41 We should nto change to a boolean that as the inverse meaning of the previous one
+;##ROLE ETC
+;##INV F
+;##FORM SOL
+;##REL NEW
+;##SEN NEU
+
+-1 for awol.  It's meaning in English isn't well-understood by everyone, and changing the API to use a new Boolean that has the inverse meaning of the previous thing is not the least surprising thing that could be done here.
+
+>>>aredridel, Contributor
+
+Yeah, awol doesn't actually mean the right thing. "still around, just not doing what it should be" is the reading of awol
+
+>>>MylesBorins, Owner
+
+@evanlucas @nodejs/collaborators
+
+not to dig this up for no reason... but I think I have a good term!
+bailed
+
+>>>mcollina, Member
+
+I like selfExit and terminated, and also bailed.
+
+>>>ChALkeR, Owner
+
+Btw, if we are replacing this, it would make sense to do that in 6.0
+
+>>>Fishrock123, Owner
+
+Sounds good to me if bailed works for all the possibilities. My original thought was to change the behavior to only voluntary so that voluntaryExit could work.
+
+>>>jasnell, Owner
+
+bailed is a bit too idiomatic and colloquial. +1 to selfExit. But I'd also rather not see this bikeshed any longer. Let's get the change in for v6
+
+>>>sam-github, Member
+
+What is the leading name contender?
+
+Please keep in mind that when the parent kills the child, it is "suicide" and when the child kills itself with process.exit() it is not "suicide".
+
+I'm not too caught up on the naming, but please make sure that whatever name is chosen doesn't make the above behaviour a head-scratching WTF.
+
+>>>Fishrock123, Owner
+
+From the docs:
+
+https://nodejs.org/dist/latest-v5.x/docs/api/cluster.html#cluster_worker_suicide
+
+Set by calling .kill() or .disconnect(), until then it is undefined.
+
+The boolean worker.suicide lets you distinguish between voluntary and accidental exit, the master may choose not to respawn a worker based on this value.
+
+;##D42 Is it an PAI problem that voluntaryExit doesn't fit?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is it an actual API problem that voluntaryExit doesn't work fit because of an edge case?
+
+>>>jasnell, Owner
+
+;##D43 Is it an PAI problem that voluntaryExit doesn't fit?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Is it an actual API problem that voluntaryExit doesn't work fit because of an edge case?
+
+Not that I can see. Let's just go with it.
+
+>>>Thread start
+
+>>>Trott, Owner
+
+Nit: Maybe fix the comma-splice while we're in here? (Or not if we're at bikeshed burnout point.) Anyway, period/full-stop after exit and have the master may choose be the start of the next sentence.
+
+>>>Thread end
+
+>>>Thread start
+
+>>>Trott, Owner
+
+Nit: If you fix the comma splice below, might as well fix this one too? Change comma to period/full-stop and have until then be the start of a new sentence. (Bonus: Put a comma after then: "Until then, it is undefined."
+
+>>>ChALkeR, Owner
+
+;##D44 Should we do the same way as the other API migration?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+Perhaps this should be done the same way as the other API migration?
+i.e.:
+
+Or something like that.
+
+>>>ChALkeR, Owner
+
+That would tie the removal of the worker.suicide alias from the API in some future version and its removal from the docs.
+
+Otherwise, it is unclear what exactly does «formerly worker.suicide» mean.
+
+>>>ChALkeR, Owner
+
+Btw, I still feel like the documentation change (the deprecation) is semver-major.
+
+The js part looks semver-minor.
+
+>>>sam-github, Member
+
+;##D45 We should document worer.suicide and worker.exitedVoluntarily separately
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL ELAB D44
+;##SEN NEU
+
+I would document worker.suicide and worker.exitedVolunatarily seperately, and for suicide docs, say its same as exitedVoluntarily, and exists for backwards compatibility.
+
+>>>ChALkeR, Owner
+
+@sam-github That would be semver-minor then, if it would not have the deprecation notice =).
+
+>>>sam-github, Member
+
+Yes, I agree, and that would be good, right? Just being minor? If we wanted, it could be deprecated in a PR towards 6.x, and then removed in 7.x... If I understand correctly.
+
+>>>ChALkeR, Owner
+
+@sam-github I don't think that removing in 7.x is a viable option here, given that it's documented as being «stable» and is used by modules in npm registry. It should be kept for some time as being soft-deprecated (at least one major release), then for some time as being hard-deprecated before the actual removal.
+
+>>>sam-github, Member
+
+ok, I'm in no hurry to break working code
+
+>>>Thread end
+
+>>>Xaekai, Other
+
+If "bailed" is too colloquial, how about vacated?
+
+>>>jasnell, Owner
+
+I'm putting this on the v6 milestone. This conversation has gone on quite a while with a bunch of bike-shedding but no progress. Let's just pick one that kinda-sorta works and get this landed with the soft-deprecation (docs only) in time for v6.
+
+>>>Qard, Member
+
+👍
+
+>>>evanlucas, Owner
+
+Ok I'll update on Saturday to be doc only for now.
+
+>>>evanlucas, Owner
+
+;##D46 Is the consensus to document obth suicide and exitedvoluntarily?
+;##ROLE OP
+;##INV F
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+ok, so is the consensus to document both of them, suicide as an alias of exitedVoluntarily with a doc only deprecation?
+
+>>>ChALkeR, Owner
+
+;##D47 Proper depreactation seems better than what suggested before
+;##ROLE PM
+;##INV T
+;##FORM SOL
+;##REL GEN D46
+;##SEN NEU
+
+@evanlucas I am not sure what the consensus is, but what you described (proper deprecation) looks much better to me than just removing the old documentation and writing «formerly worker.suicide». Replacing the references to the new name would be fine, though =).
+
+>>>evanlucas, Owner
+
+@ChALkeR @sam-github @nodejs/ctc PTAL. I have updated with the suggestions proposed.
+
+>>>Thread start
+
+>>>ChALkeR, Owner
+
+Not sure if there is a reason to duplicate the exitedVoluntarily documentation here, just a link should do it IMO.
+I don't have a strong opinion on this, though. It would perhaps be better to wait for more opinions here.
+
+>>>jasnell, Owner
+
+It's likely not necessary to duplicate but pulling out the redundant text can be done in a separate PR
+
+>>>ChALkeR, edited
+
+;##D49 Should we keep thsi or replace?
+;##ROLE PM
+;##INV T
+;##FORM OPQ
+;##REL NEW
+;##SEN NEU
+
+/cc @nodejs/collaborators — should we keep this part, or just replace it with the following:
+
+removing all the duplicate text?
+
+Update: ah, sorry, missed the last comment by @jasnell.
+
+>>>Thread end
+
+>>>Fishrock123, Owner
+
+;##D50 WHy don't we call it just voluntaryexit?
+;##ROLE PM
+;##INV F
+;##FORM OPQ
+;##REL REFR D46
+;##SEN NEU
+
+Why don't we just call it voluntaryExit? Sure it's not proper English but at least it's easier to spell.
+
+;##D51 We should fix th behaviour if it doesn't fit
+;##ROLE PM
+;##INV F
+;##FORM SOL
+;##REL REFR D50
+;##SEN NEU
+
+If that doesn't match the behavior, then we should just fix the behavior because it is clearly documented as an {in}voluntary indicator.
+
+>>>jasnell, Owner
+
+New CI: https://ci.nodejs.org/job/node-test-pull-request/2382/
+
+>>>ChALkeR, Owner
+
+@jasnell Thanks for the semver-major label =).
+
+>>>jasnell, Owner
+
+@nodejs/ctc @nodejs/collaborators .. one more quick round of reviews and some LGTM's on this if it looks good to land. Thank you!
+
+LGTM with the most recent changes.
+
+>>>ChALkeR, Owner
+
+The actual deprecation changes LGTM, given that this is a semver-major documentation-only deprecation.
+
+I abstain from the exact new name discussion.
+
+>>>ChALkeR, Owner
+
+Note that @sam-github had some considerations on the name here: #3721 (comment), #3743 (comment).
+
+>>>evanlucas, Owner
+
+@ChALkeR @sam-github and everyone else. Are yall ok with exitedAfterDisconnect? I'd really like to get this in for v6
+
+>>>ChALkeR, Owner
+
+@evanlucas At this point I am equally ok with all the name proposals here =). There is enough opinions here already, I just want this to get this settled.
+
+>>>evanlucas, Owner
+
+@ChALkeR I agree
+
+>>>jasnell, Owner
+
+I vote for calling it .bikesheddedToDeath (+1 to exitedAfterDisconnect)
+
+>>>evanlucas, Owner
+
+Ok, updated. CI: https://ci.nodejs.org/job/node-test-pull-request/2388/
+
+>>>evanlucas, Owner
+
+CI is all green. @TheAlphaNerd @JungMinu @jasnell and @ChALkeR Can I get your final signoff to get this landed? Thanks!!
+
+>>>jasnell, Owner
+
+LGTM
+
+>>>addaleax, Owner
+
+LGTM
+
+>>>Thread start
+
+>>>ChALkeR, Owner
+
+This file still has voluntary exit and voluntary references. It's only a test file, though.
+
+>>>ChALkeR, Owner
+
+It'a actually fine there.
+
+>>>evanlucas, Owner
+
+ah good catch. Fixing now
+
+>>>Thread end
+
+>>>ChALkeR, Owner
+
+LGTM
+
+>>>MylesBorins, Owner
+
+LGTM
+
+>>>Fishrock123, Owner
+
+seems fine I suppose
+
+>>>evanlucas, Owner
+
+Will land later on tonight if no one objects. Thanks!!!
+
+>>>Qard, Member
+
+LGTM. Just about anything is better than the current terminology.
+
+>>>evanlucas, Owner
+
+Landed in 4f619bd. Thanks!
+
+>>>ChALkeR, Owner
+
+Btw, this wasn't backported to 4.x, was it? Perhaps it is too late now as 4.5 already got rcs (cc @TheAlphaNerd), but if there would be 4.6 sometime, it could make sense to backport it the other way around and without the deprecation — i.e. make .exitedAfterDisconnect a getter/setter alias to .suicide in a semver-minor version of 4.x.
+
+>>>jasnell, Owner
+
++1 SGTM
+
+On Friday, August 5, 2016, Сковорода Никита Андреевич <
+notifications@github.com> wrote:
+
+Btw, this wasn't backported to 4.x, was it? Perhaps it is too late now as
+4.5 already got rcs, but if there would be 4.6 sometime, it could make
+sense to backport it the other way around and without the deprecation —
+i.e. make .exitedAfterDisconnect a getter/setter alias to .suicide.
+
+—
+You are receiving this because you were mentioned.
+Reply to this email directly, view it on GitHub
+#3743 (comment), or mute
+the thread
+https://github.com/notifications/unsubscribe-auth/AAa2eSlRqcZPIm26xbWiN2nT7qPSqJATks5qczxGgaJpZM4Gfr24
+.
+
+>>>ChALkeR, Owner
+
+Because given our LTS timeline, if we don't make 4.x support .exitedAfterDisconnect, then hard-deprecating .suicide until at least 10.x won't be reasonable, because that would force libraries to resort to detection mechanisms.
+
+>>>evanlucas, Owner
+
+I'll submit a backport PR today
+
