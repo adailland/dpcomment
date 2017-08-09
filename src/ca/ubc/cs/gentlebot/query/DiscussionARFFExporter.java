@@ -72,13 +72,15 @@ public class DiscussionARFFExporter {
 		s += "@attribute hasDecisions {TRUE, FALSE}" + nl;
 		s += "@attribute howManyDecisions numeric" + nl;
 		s += "@attribute idComment numeric" + nl;
+		s += "@attribute idPara numeric" + nl;
 		return s;
 	}
 
 	private String constructData() {
 		String s = "";
 		s += "@data" + nl;
-		for (Comment c : this.discussion.getComments())
+		for (Comment c : this.discussion.getComments()){
+			int previousParaId = 0;
 			for (Utterance u : c.getUtterances()) {
 				String content = u.getDescription().getContent();
 				String author = u.getDescription().getName();
@@ -88,9 +90,10 @@ public class DiscussionARFFExporter {
 						|| !content.contains(" ") || content.contains("added a commit that referenced")
 						|| content.contains("This was referenced"))) {
 //					System.out.println(u.getDescription().getContent());
-					s += toARFFInstanceLine(u,c);
+					s += toARFFInstanceLine(u,c, ++previousParaId);
 				}
 			}
+		}
 		return s;
 	}
 
@@ -140,7 +143,7 @@ public class DiscussionARFFExporter {
 	 *            the Utterance
 	 * @return the comma separated values of the UD
 	 */
-	private String toARFFInstanceLine(Utterance u, Comment c) {
+	private String toARFFInstanceLine(Utterance u, Comment c, int previousParaId) {
 		UtteranceDescription d = u.getDescription();
 
 		String s = "";
@@ -204,6 +207,10 @@ public class DiscussionARFFExporter {
 		
 		// @attribute idComment
 		s += c.getId();
+		s += ",";
+		
+		// @attribute idComment
+		s += previousParaId;
 		s += nl;
 
 		return s;

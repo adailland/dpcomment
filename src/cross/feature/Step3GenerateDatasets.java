@@ -97,17 +97,13 @@ public class Step3GenerateDatasets {
 		for (int i = 0; i < dataset.numInstances(); i++) {
 			Instance cur = dataset.instance(i);
 			if(RFTestScore[i] >= score){
-				if(!listIdComment.contains((int) cur.value(13))){
-					if(listIdComment.size() <= 0){
-						parsedDiscussionOut.write("comment" + (int) cur.value(13));
-					}else{
-						parsedDiscussionOut.write("\ncomment" + (int) cur.value(13));
-					}
-					
-					listIdComment.add((int) cur.value(13));
+				if(listIdComment.size() <= 0){
+					parsedDiscussionOut.write("para" + (int) cur.value(13) + "_" + (int) cur.value(14));
+				}else{
+					parsedDiscussionOut.write("\npara" + (int) cur.value(13) + "_" + (int) cur.value(14));
 				}
 				
-				// + " " + cur.stringValue(0) + " '" + cur.stringValue(1) +
+				listIdComment.add((int) cur.value(13));
 			}
 			
 		}

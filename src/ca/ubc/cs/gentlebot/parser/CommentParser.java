@@ -111,7 +111,6 @@ public class CommentParser {
 			final Comment comment = DiscussionsFactory.eINSTANCE.createComment();
 			comment.setRawContent(StringUtils.flatten(content));
 			comment.setId(++previousCommentID);
-			
 			this.discussionObject.getComments().add(comment);
 			if (previouslySeenComment != null) {
 				previouslySeenComment.setNext(comment);
